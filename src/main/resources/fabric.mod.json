@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"id": "vsrcraft",
+	"version": "${version}",
+	"name": "VSRCraft",
+	"description": "Vertical Scrolling Rhythm Game in Minecraft with crafting progression, lore, and beatmaps.",
+	"authors": [
+		"Cardo"
+	],
+	"contact": {},
+	"license": "MIT",
+	"icon": "assets/vsrcraft/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.vsrcraft.VSRCraft"
+		],
+		"client": [
+			"com.vsrcraft.client.VSRCraftClient"
+		]
+	},
+	"mixins": [
+		"vsrcraft.mixins.json",
+		{
+			"config": "vsrcraft.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
