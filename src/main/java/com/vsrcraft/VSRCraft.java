@@ -1,5 +1,6 @@
 package com.vsrcraft;
 
+import com.vsrcraft.sound.ModSounds;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,5 +12,6 @@ public class VSRCraft implements ModInitializer {
     @Override
     public void onInitialize() {
         LOGGER.info("VSRCraft initializing!");
+        ModSounds.registerSounds();
     }
 }

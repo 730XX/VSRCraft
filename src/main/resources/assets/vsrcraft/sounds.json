@@ -1,0 +1,23 @@
+{
+  "hit_clap": {
+    "sounds": [
+      "vsrcraft:sfx/hit_clap"
+    ]
+  },
+  "music.elpis": {
+    "sounds": [
+      {
+        "name": "vsrcraft:music/elpis",
+        "stream": true
+      }
+    ]
+  },
+  "music.whatsup": {
+    "sounds": [
+      {
+        "name": "vsrcraft:music/whatsup",
+        "stream": true
+      }
+    ]
+  }
+}
