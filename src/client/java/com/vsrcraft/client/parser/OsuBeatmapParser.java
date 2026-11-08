@@ -17,6 +17,8 @@ public class OsuBeatmapParser {
         String currentSection = "";
         String title = "Unknown Title";
         String artist = "Unknown Artist";
+        String audioFilename = "";
+        long audioLeadInMs = 0L;
         int circleSize = 4; // Teclas por defecto (4K)
 
         Beatmap beatmap = null;
@@ -28,12 +30,21 @@ public class OsuBeatmapParser {
             if (line.startsWith("[") && line.endsWith("]")) {
                 currentSection = line.substring(1, line.length() - 1);
                 if (currentSection.equals("HitObjects") && beatmap == null) {
-                    beatmap = new Beatmap(title, artist, circleSize);
+                    beatmap = new Beatmap(title, artist, circleSize, audioFilename, audioLeadInMs);
                 }
                 continue;
             }
 
             switch (currentSection) {
+                case "General" -> {
+                    if (line.startsWith("AudioFilename:")) {
+                        audioFilename = line.substring("AudioFilename:".length()).trim();
+                    } else if (line.startsWith("AudioLeadIn:")) {
+                        try {
+                            audioLeadInMs = Long.parseLong(line.substring("AudioLeadIn:".length()).trim());
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
                 case "Metadata" -> {
                     if (line.startsWith("Title:")) {
                         title = line.substring("Title:".length()).trim();
@@ -50,7 +61,7 @@ public class OsuBeatmapParser {
                 }
                 case "HitObjects" -> {
                     if (beatmap == null) {
-                        beatmap = new Beatmap(title, artist, circleSize);
+                        beatmap = new Beatmap(title, artist, circleSize, audioFilename, audioLeadInMs);
                     }
                     parseHitObject(line, beatmap, circleSize);
                 }
@@ -58,9 +69,10 @@ public class OsuBeatmapParser {
         }
 
         if (beatmap == null) {
-            beatmap = new Beatmap(title, artist, circleSize);
+            beatmap = new Beatmap(title, artist, circleSize, audioFilename, audioLeadInMs);
         }
 
+        beatmap.sortNotes();
         return beatmap;
     }
 
@@ -99,4 +111,3 @@ public class OsuBeatmapParser {
         } catch (NumberFormatException ignored) {}
     }
 }
-

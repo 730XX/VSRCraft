@@ -15,6 +15,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 import java.io.InputStream;
 
@@ -23,9 +24,11 @@ public class RhythmGameScreen extends Screen {
     private final int[] laneKeys;
     private final boolean[] lanePressed;
     private final RhythmEngine engine;
+    private final long leadInMs;
 
-    // Sincronización
-    private static final long LEAD_IN_MS = 2000L;
+    // Sincronización con Reloj Maestro de Audio (OpenAL)
+    private static final long MIN_LEAD_IN_MS = 2000L;
+    private boolean sessionInitialized = false;
     private long startNanoTime = -1;
     private boolean musicStarted = false;
 
@@ -39,6 +42,7 @@ public class RhythmGameScreen extends Screen {
         this.laneKeys = KeybindConfig.getKeysForMode(keyCount);
         this.lanePressed = new boolean[keyCount];
         this.engine = new RhythmEngine(beatmap);
+        this.leadInMs = Math.max(MIN_LEAD_IN_MS, beatmap.getAudioLeadInMs());
     }
 
     private static Beatmap loadWhatsUpBeatmap() {
@@ -56,30 +60,52 @@ public class RhythmGameScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.startNanoTime = System.nanoTime();
-        this.musicStarted = false;
-        engine.start(0);
+        // Evitar que redimensionar la ventana de Minecraft reinicie el reloj o desincronice el audio
+        if (!this.sessionInitialized) {
+            this.sessionInitialized = true;
+            this.startNanoTime = System.nanoTime();
+            this.musicStarted = false;
+            this.engine.start(0);
+            // Precargar el archivo .ogg en memoria de OpenAL durante la cuenta regresiva (Lead-In)
+            AudioManager.preloadMusic(ModSounds.MUSIC_WHATSUP);
+        }
     }
 
-    private long getCurrentSongTimeMs() {
-        if (startNanoTime < 0) return -LEAD_IN_MS;
-        long elapsedMs = (System.nanoTime() - startNanoTime) / 1_000_000L;
-        return elapsedMs - LEAD_IN_MS;
+    private double getCurrentSongTimeMs() {
+        if (!musicStarted) {
+            if (startNanoTime < 0) return -leadInMs;
+            double elapsedMs = (System.nanoTime() - startNanoTime) / 1_000_000.0;
+            double leadInCurrent = elapsedMs - leadInMs;
+            // Si llegó a 0 pero aún está terminando de subir el buffer a OpenAL, esperar en 0.0ms
+            if (leadInCurrent >= 0.0 && !AudioManager.ensureMusicReady()) {
+                return -1.0;
+            }
+            return leadInCurrent;
+        }
+        // Una vez iniciada la música, el Reloj Maestro de OpenAL manda sobre las notas
+        return AudioManager.getMusicTimeMs() + RhythmConfig.globalAudioOffsetMs;
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        long currentSongTime = getCurrentSongTimeMs();
-
-        // Arrancar la música de What's up, people?! al llegar al segundo cero
-        if (!musicStarted && currentSongTime >= 0) {
-            AudioManager.startMusic(ModSounds.MUSIC_WHATSUP);
-            musicStarted = true;
+        // Verificar si la precarga asíncrona terminó para crear el buffer OpenAL antes del segundo 0
+        if (!musicStarted) {
+            AudioManager.ensureMusicReady();
         }
 
-        engine.update(currentSongTime);
+        double currentSongTimeMs = getCurrentSongTimeMs();
+
+        // Arrancar la música con latencia cero al cruzar el milisegundo 0
+        if (!musicStarted && currentSongTimeMs >= 0.0) {
+            AudioManager.startPreloadedMusic();
+            musicStarted = true;
+            currentSongTimeMs = AudioManager.getMusicTimeMs() + RhythmConfig.globalAudioOffsetMs;
+        }
+
+        long currentSongTimeLong = Math.round(currentSongTimeMs);
+        engine.update(currentSongTimeLong);
 
         int boardWidth = keyCount * RhythmConfig.LANE_WIDTH;
         int boardStartX = (this.width - boardWidth) / 2;
@@ -88,28 +114,45 @@ public class RhythmGameScreen extends Screen {
         // 1. Render de pista y carriles
         LaneRenderer.renderLanes(guiGraphics, this.font, boardStartX, boardWidth, hitLineY, this.height, keyCount, lanePressed);
 
-        // 2. Render de notas cayendo
-        NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTime, boardStartX, hitLineY, this.height, keyCount);
+        // 2. Render de notas cayendo con precisión sub-milisegundo
+        NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount);
 
         // 3. Render de información (Score, Combo, Juicio)
         JudgementHudRenderer.renderHud(guiGraphics, this.font, engine.getScoreTracker(), engine.getLastJudgement(), boardStartX, hitLineY, this.width, this.height);
 
         // Metadata de la canción y estado
-        String status = currentSongTime < 0 ? "PREPARATE (" + (-currentSongTime / 1000 + 1) + "s)" : (currentSongTime / 1000) + "s / " + currentSongTime + "ms";
+        String status = currentSongTimeLong < 0
+                ? "PREPARATE (" + (-currentSongTimeLong / 1000 + 1) + "s)"
+                : (currentSongTimeLong / 1000) + "s / " + currentSongTimeLong + "ms";
         String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getNotes().size() + " Notes] - " + status;
         guiGraphics.drawString(this.font, songInfo, (this.width - this.font.width(songInfo)) / 2, 8, 0xFFE0E0E0, true);
 
-        // Mensaje de ayuda
-        String help = "Teclas: D, F, J, K | Presiona ESC para salir";
+        // Mensaje de ayuda y calibración de offset global
+        String offsetStr = (RhythmConfig.globalAudioOffsetMs >= 0 ? "+" : "") + RhythmConfig.globalAudioOffsetMs + "ms";
+        String help = "Teclas: W, D, L, P | Offset Audio: " + offsetStr + " (Flechas Izq/Der) | ESC para salir";
         guiGraphics.drawString(this.font, help, (this.width - this.font.width(help)) / 2, this.height - 20, 0xFF777777, false);
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        long currentSongTime = getCurrentSongTimeMs();
+        // Ajuste de offset global en vivo estilo osu! (Flecha Izquierda / Derecha o - / +)
+        if (event.key() == GLFW.GLFW_KEY_LEFT || event.key() == GLFW.GLFW_KEY_MINUS) {
+            RhythmConfig.globalAudioOffsetMs -= 5L;
+            return true;
+        }
+        if (event.key() == GLFW.GLFW_KEY_RIGHT || event.key() == GLFW.GLFW_KEY_EQUAL) {
+            RhythmConfig.globalAudioOffsetMs += 5L;
+            return true;
+        }
+
+        long currentSongTime = Math.round(getCurrentSongTimeMs());
 
         for (int lane = 0; lane < keyCount; lane++) {
             if (event.key() == laneKeys[lane]) {
+                // Evitar key-repeat del sistema operativo si la tecla ya estaba mantenida
+                if (lanePressed[lane]) {
+                    return true;
+                }
                 lanePressed[lane] = true;
                 Judgement judgement = engine.onLanePressed(lane, currentSongTime);
                 if (judgement != null && judgement != Judgement.MISS) {

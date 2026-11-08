@@ -6,5 +6,8 @@ public class RhythmConfig {
     public static final float DEFAULT_SCROLL_SPEED = 0.5f; // Píxeles por milisegundo
     public static final int HIT_LINE_OFFSET_BOTTOM = 60;
     public static final long MAX_HIT_WINDOW_MS = 150L;
-}
 
+    // Offset global de audio (en ms) estilo osu! para calibrar latencia de audífonos/driver
+    // Valores positivos si el audio se escucha tarde; negativos si el audio se escucha antes.
+    public static long globalAudioOffsetMs = 0L;
+}
