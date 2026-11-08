@@ -24,7 +24,7 @@ import java.io.InputStream;
 
 public class RhythmGameScreen extends Screen {
     private final int keyCount;
-    private final int[] laneKeys;
+    private int[] laneKeys;
     private final boolean[] lanePressed;
     private final RhythmEngine engine;
     private final long leadInMs;
@@ -65,6 +65,9 @@ public class RhythmGameScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+
+        // Actualizar teclas por si fueron reasignadas en la pantalla de opciones
+        this.laneKeys = KeybindConfig.getKeysForMode(keyCount);
 
         if (!this.sessionInitialized) {
             this.sessionInitialized = true;
@@ -125,6 +128,13 @@ public class RhythmGameScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Fondo oscurecido completo (Background Dim)
+        float dim = VSRCraftSettings.get().backgroundDim;
+        if (dim > 0.0f) {
+            int alpha = Math.max(0, Math.min(255, Math.round(dim * 255)));
+            guiGraphics.fill(0, 0, this.width, this.height, (alpha << 24) | 0x000000);
+        }
+
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         if (!musicStarted && !isPaused) {
@@ -147,12 +157,12 @@ public class RhythmGameScreen extends Screen {
 
         int boardWidth = keyCount * RhythmConfig.LANE_WIDTH;
         int boardStartX = (this.width - boardWidth) / 2;
-        int hitLineY = this.height - RhythmConfig.HIT_LINE_OFFSET_BOTTOM;
+        int hitLineY = this.height - RhythmConfig.getHitLineOffsetBottom();
 
         // 1. Render de pista y carriles (aplica opacidad y opción de hit glow)
         LaneRenderer.renderLanes(guiGraphics, this.font, boardStartX, boardWidth, hitLineY, this.height, keyCount, lanePressed);
 
-        // 2. Render de notas cayendo (aplica velocidad y grosor configurado)
+        // 2. Render de notas cayendo (aplica velocidad, grosor y hit position configurados)
         NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount);
 
         // 3. Render de información (Score a la izquierda, Combo y Juicio al medio)
@@ -167,8 +177,8 @@ public class RhythmGameScreen extends Screen {
 
         // Mensaje de ayuda abajo a la izquierda
         String offsetStr = (VSRCraftSettings.get().globalAudioOffsetMs >= 0 ? "+" : "") + VSRCraftSettings.get().globalAudioOffsetMs + "ms";
-        String help = String.format("Teclas: W, D, L, P | Scroll: %.2fx | Offset: %s",
-                VSRCraftSettings.get().scrollSpeed, offsetStr);
+        String help = String.format("Scroll: %.2fx | Offset: %s | HitPos: %dpx | Clic en ⚙ para Ajustes",
+                VSRCraftSettings.get().scrollSpeed, offsetStr, RhythmConfig.getHitLineOffsetBottom());
         guiGraphics.drawString(this.font, help, 12, this.height - 18, 0xFF777777, false);
     }
 

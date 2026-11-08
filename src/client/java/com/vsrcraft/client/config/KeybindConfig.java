@@ -2,16 +2,7 @@ package com.vsrcraft.client.config;
 
 import org.lwjgl.glfw.GLFW;
 
-import java.util.Map;
-
 public class KeybindConfig {
-    public static final int[] DEFAULT_4K = {
-            GLFW.GLFW_KEY_W,
-            GLFW.GLFW_KEY_D,
-            GLFW.GLFW_KEY_L,
-            GLFW.GLFW_KEY_P
-    };
-
     public static final int[] DEFAULT_6K = {
             GLFW.GLFW_KEY_S,
             GLFW.GLFW_KEY_D,
@@ -32,11 +23,13 @@ public class KeybindConfig {
     };
 
     public static int[] getKeysForMode(int keyCount) {
+        if (keyCount == 4) {
+            return VSRCraftSettings.get().keybinds4K;
+        }
         return switch (keyCount) {
             case 6 -> DEFAULT_6K;
             case 7 -> DEFAULT_7K;
-            default -> DEFAULT_4K;
+            default -> VSRCraftSettings.get().keybinds4K;
         };
     }
 }
-
