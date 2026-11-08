@@ -167,7 +167,7 @@ public class RhythmGameScreen extends Screen {
 
         // Mensaje de ayuda abajo a la izquierda
         String offsetStr = (VSRCraftSettings.get().globalAudioOffsetMs >= 0 ? "+" : "") + VSRCraftSettings.get().globalAudioOffsetMs + "ms";
-        String help = String.format("Teclas: W, D, L, P | Scroll: %.2fx | Offset: %s | Clic en ⚙ para Ajustes",
+        String help = String.format("Teclas: W, D, L, P | Scroll: %.2fx | Offset: %s",
                 VSRCraftSettings.get().scrollSpeed, offsetStr);
         guiGraphics.drawString(this.font, help, 12, this.height - 18, 0xFF777777, false);
     }
