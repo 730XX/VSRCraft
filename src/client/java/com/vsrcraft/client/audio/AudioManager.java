@@ -1,5 +1,6 @@
 package com.vsrcraft.client.audio;
 
+import com.vsrcraft.client.config.VSRCraftSettings;
 import net.minecraft.client.Minecraft;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -44,6 +45,7 @@ public class AudioManager {
     private static long musicDurationMs = 0L;
     private static boolean musicReady = false;
     private static boolean musicPlaying = false;
+    private static boolean musicPaused = false;
     private static boolean musicFinished = false;
 
     // Estado del Reloj Maestro Híbrido (OpenAL Sample Offset + Interpolación NanoTime)
@@ -62,7 +64,6 @@ public class AudioManager {
 
     /**
      * Precarga en segundo plano el archivo .ogg asociado al SoundEvent o ruta de recursos.
-     * Se ejecuta durante el Lead-In para que al llegar al ms 0 el arranque sea instantáneo (0ms de latencia).
      */
     public static synchronized void preloadMusic(SoundEvent sound) {
         String resourcePath = resolveResourcePath(sound);
@@ -72,7 +73,6 @@ public class AudioManager {
     public static synchronized void preloadMusicFromResource(String resourcePath) {
         stopMusic();
 
-        // Detener música ambiental de Minecraft para que no se mezcle con el beatmap
         Minecraft client = Minecraft.getInstance();
         if (client != null && client.getMusicManager() != null) {
             client.getMusicManager().stopPlaying();
@@ -81,10 +81,6 @@ public class AudioManager {
         preloadFuture = CompletableFuture.supplyAsync(() -> decodeOggResource(resourcePath));
     }
 
-    /**
-     * Verifica si la decodificación en segundo plano terminó y sube el buffer PCM a OpenAL.
-     * Debe llamarse desde el hilo principal (render/tick).
-     */
     public static synchronized boolean ensureMusicReady() {
         if (musicReady) return true;
         if (preloadFuture == null || !preloadFuture.isDone()) return false;
@@ -106,7 +102,7 @@ public class AudioManager {
                 AL10.alSourcei(musicSourceId, AL10.AL_SOURCE_RELATIVE, AL10.AL_TRUE);
                 AL10.alSource3f(musicSourceId, AL10.AL_POSITION, 0.0f, 0.0f, 0.0f);
                 AL10.alSourcef(musicSourceId, AL10.AL_ROLLOFF_FACTOR, 0.0f);
-                AL10.alSourcef(musicSourceId, AL10.AL_GAIN, getEffectiveVolume(SoundSource.MASTER));
+                updateMusicVolume();
 
                 musicSampleRate = decoded.sampleRate;
                 musicDurationMs = (decoded.totalSamples * 1000L) / Math.max(1, decoded.sampleRate);
@@ -122,15 +118,11 @@ public class AudioManager {
         }
     }
 
-    /**
-     * Inicia la reproducción inmediata de la música precargada en OpenAL.
-     */
     public static synchronized void startMusic(SoundEvent sound) {
         if (!musicReady && preloadFuture == null) {
             preloadMusic(sound);
         }
-        if ( preloadFuture != null ) {
-            // Si aún estaba terminando de decodificar, esperar brevemente y subir a OpenAL
+        if (preloadFuture != null) {
             try {
                 preloadFuture.join();
             } catch (Exception ignored) {}
@@ -142,7 +134,7 @@ public class AudioManager {
     public static synchronized void startPreloadedMusic() {
         if (!ensureMusicReady() || musicSourceId == 0) return;
 
-        AL10.alSourcef(musicSourceId, AL10.AL_GAIN, getEffectiveVolume(SoundSource.MASTER));
+        updateMusicVolume();
         AL10.alSourceRewind(musicSourceId);
         AL10.alSourcePlay(musicSourceId);
 
@@ -153,16 +145,39 @@ public class AudioManager {
         lastReturnedTimeMs = 0.0;
         musicFinishedNano = 0L;
         musicPlaying = true;
+        musicPaused = false;
         musicFinished = false;
     }
 
-    /**
-     * Devuelve la posición exacta actual de la canción en milisegundos (con precisión sub-ms)
-     * sincronizada directamente con el cursor de hardware de OpenAL (AL_SAMPLE_OFFSET).
-     */
+    public static synchronized void pauseMusic() {
+        if (musicPlaying && musicSourceId != 0 && !musicPaused) {
+            AL10.alSourcePause(musicSourceId);
+            musicPaused = true;
+        }
+    }
+
+    public static synchronized void resumeMusic() {
+        if (musicPlaying && musicSourceId != 0 && musicPaused) {
+            AL10.alSourcePlay(musicSourceId);
+            musicPaused = false;
+            lastHardwareUpdateNano = System.nanoTime();
+        }
+    }
+
+    public static synchronized void updateMusicVolume() {
+        if (musicSourceId != 0) {
+            float baseVol = getEffectiveVolume(SoundSource.MASTER);
+            float customVol = VSRCraftSettings.get().musicVolume; // Por defecto 50%
+            AL10.alSourcef(musicSourceId, AL10.AL_GAIN, baseVol * customVol);
+        }
+    }
+
     public static synchronized double getMusicTimeMs() {
         if (!musicPlaying || musicSourceId == 0) {
             return 0.0;
+        }
+        if (musicPaused) {
+            return lastReturnedTimeMs;
         }
 
         long nowNano = System.nanoTime();
@@ -178,11 +193,9 @@ public class AudioManager {
                 lastHardwareUpdateNano = nowNano;
             }
 
-            // Interpolación suave entre períodos de mezcla de OpenAL (~10-20ms)
             double elapsedSinceUpdateMs = (nowNano - lastHardwareUpdateNano) / 1_000_000.0;
             double interpolatedMs = lastHardwareTimeMs + Math.min(25.0, Math.max(0.0, elapsedSinceUpdateMs));
 
-            // Garantizar avance monótono sin micro-saltos hacia atrás, manteniéndose atado al hardware
             if (interpolatedMs < lastReturnedTimeMs && (lastReturnedTimeMs - hardwareMs) < 25.0) {
                 interpolatedMs = lastReturnedTimeMs;
             }
@@ -190,7 +203,6 @@ public class AudioManager {
             lastReturnedTimeMs = interpolatedMs;
             return interpolatedMs;
         } else if (state == AL10.AL_STOPPED && lastSampleOffset >= 0) {
-            // La canción llegó al final; continuar el reloj suavemente para que terminen las notas finales
             if (!musicFinished) {
                 musicFinished = true;
                 musicFinishedNano = nowNano;
@@ -204,10 +216,13 @@ public class AudioManager {
     }
 
     public static synchronized boolean isMusicPlaying() {
-        return musicPlaying;
+        return musicPlaying && !musicPaused;
     }
 
     public static synchronized void playHitSound() {
+        VSRCraftSettings settings = VSRCraftSettings.get();
+        if (!settings.enableHitSounds) return; // Hitsounds deshabilitados
+
         initHitSoundPoolIfNeeded();
         if (!hitSoundInitialized || hitSoundBufferId == 0) return;
 
@@ -216,7 +231,9 @@ public class AudioManager {
 
         if (source != 0) {
             AL10.alSourceStop(source);
-            AL10.alSourcef(source, AL10.AL_GAIN, getEffectiveVolume(SoundSource.MASTER) * 0.85f);
+            float baseVol = getEffectiveVolume(SoundSource.MASTER);
+            float gain = baseVol * settings.hitSoundVolume;
+            AL10.alSourcef(source, AL10.AL_GAIN, gain);
             AL10.alSourcePlay(source);
         }
     }
@@ -262,6 +279,7 @@ public class AudioManager {
         }
         musicReady = false;
         musicPlaying = false;
+        musicPaused = false;
         musicFinished = false;
         lastSampleOffset = -1;
         lastHardwareTimeMs = 0.0;
@@ -304,7 +322,7 @@ public class AudioManager {
 
     private static String resolveResourcePath(SoundEvent sound) {
         if (sound == null) return "/assets/vsrcraft/sounds/music/whatsup.ogg";
-        String path = sound.location().getPath(); // ej: "music.whatsup" o "music.elpis"
+        String path = sound.location().getPath();
         if (path.startsWith("music.")) {
             String trackName = path.substring("music.".length());
             return "/assets/vsrcraft/sounds/music/" + trackName + ".ogg";

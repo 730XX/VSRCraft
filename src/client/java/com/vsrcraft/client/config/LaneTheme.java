@@ -9,9 +9,18 @@ public class LaneTheme {
         return (lane % 2 == 0) ? 0xFF3399FF : 0xFFFFFFFF;
     }
 
-    public static final int TRACK_BACKGROUND = 0xCC101015;
-    public static final int LANE_DIVIDER = 0x33FFFFFF;
+    public static int getTrackBackgroundColor() {
+        float alpha = VSRCraftSettings.get().laneAlpha;
+        int a = Math.max(0, Math.min(255, Math.round(alpha * 255)));
+        return (a << 24) | 0x101015;
+    }
+
+    public static int getLaneDividerColor() {
+        float alpha = VSRCraftSettings.get().laneAlpha;
+        int a = Math.max(0, Math.min(255, Math.round(alpha * 0.4f * 255)));
+        return (a << 24) | 0xFFFFFF;
+    }
+
     public static final int LANE_PRESS_GLOW = 0x3344AAFF;
     public static final int HIT_LINE = 0xFFFFCC00;
 }
-

@@ -9,14 +9,15 @@ import java.util.List;
 
 public class NoteRenderer {
 
-    // Mantener sobrecarga con long por compatibilidad
     public static void renderNotes(GuiGraphics graphics, List<Note> notes, long currentSongTimeMs, int boardStartX, int hitLineY, int screenHeight, int laneCount) {
         renderNotes(graphics, notes, (double) currentSongTimeMs, boardStartX, hitLineY, screenHeight, laneCount);
     }
 
     public static void renderNotes(GuiGraphics graphics, List<Note> notes, double currentSongTimeMs, int boardStartX, int hitLineY, int screenHeight, int laneCount) {
         int hitCenterY = hitLineY + 2; // Centro de la línea de impacto (grosor 4px)
-        int halfNote = RhythmConfig.NOTE_HEIGHT / 2;
+        int noteHeight = RhythmConfig.getNoteHeight();
+        float scrollSpeed = RhythmConfig.getScrollSpeed();
+        int halfNote = noteHeight / 2;
 
         for (Note note : notes) {
             if (note.isMissed()) continue;
@@ -39,13 +40,13 @@ public class NoteRenderer {
                 double timeUntilHead = headTimeMs - currentSongTimeMs;
                 double timeUntilTail = endOffsetMs - currentSongTimeMs;
 
-                int headY = Math.round(hitCenterY - (float) (timeUntilHead * RhythmConfig.DEFAULT_SCROLL_SPEED));
-                int tailY = Math.round(hitCenterY - (float) (timeUntilTail * RhythmConfig.DEFAULT_SCROLL_SPEED));
+                int headY = Math.round(hitCenterY - (float) (timeUntilHead * scrollSpeed));
+                int tailY = Math.round(hitCenterY - (float) (timeUntilTail * scrollSpeed));
 
                 if (headY >= 0 && tailY <= screenHeight && headY > tailY) {
                     int clampedTailY = Math.max(0, tailY);
                     int clampedHeadY = Math.min(screenHeight, headY);
-                    int holdColor = (noteColor & 0x00FFFFFF) | 0x88000000; // Semi-transparente para la cola
+                    int holdColor = (noteColor & 0x00FFFFFF) | 0x88000000;
                     graphics.fill(noteX + 4, clampedTailY, noteX + noteWidth - 4, clampedHeadY, holdColor);
                 }
             }
@@ -53,14 +54,12 @@ public class NoteRenderer {
             // Renderizar cabeza de la nota (centrada exactamente sobre hitCenterY cuando timeUntilHit == 0)
             double effectiveNoteTimeMs = (note.isHit() && isHold) ? currentSongTimeMs : note.getOffsetMs();
             double timeUntilHit = effectiveNoteTimeMs - currentSongTimeMs;
-            int centerY = Math.round(hitCenterY - (float) (timeUntilHit * RhythmConfig.DEFAULT_SCROLL_SPEED));
+            int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
             int noteTopY = centerY - halfNote;
-            int noteBottomY = noteTopY + RhythmConfig.NOTE_HEIGHT;
+            int noteBottomY = noteTopY + noteHeight;
 
             if (noteBottomY >= 0 && noteTopY <= screenHeight) {
-                // Cuerpo de la nota
                 graphics.fill(noteX, noteTopY, noteX + noteWidth, noteBottomY, noteColor);
-                // Borde superior brillante
                 graphics.fill(noteX, noteTopY, noteX + noteWidth, noteTopY + 2, 0xFFFFFFFF);
             }
         }
