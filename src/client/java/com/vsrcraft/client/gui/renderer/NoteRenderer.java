@@ -59,8 +59,8 @@ public class NoteRenderer {
             int noteBottomY = noteTopY + noteHeight;
 
             if (noteBottomY >= 0 && noteTopY <= screenHeight) {
+                // Color sólido limpio del carril (sin línea blanca desfasada)
                 graphics.fill(noteX, noteTopY, noteX + noteWidth, noteBottomY, noteColor);
-                graphics.fill(noteX, noteTopY, noteX + noteWidth, noteTopY + 2, 0xFFFFFFFF);
             }
         }
     }
