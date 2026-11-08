@@ -9,6 +9,7 @@ import org.lwjgl.openal.AL11;
 import org.lwjgl.stb.STBVorbis;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.libc.LibCStdlib;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -109,7 +110,9 @@ public class AudioManager {
                 musicReady = true;
                 return true;
             } finally {
-                MemoryUtil.memFree(decoded.pcm);
+                // STBVorbis aloca memoria internamente con malloc de C; debe liberarse con LibCStdlib.free
+                // (MemoryUtil.memFree fallaría en Minecraft porque Minecraft usa jemalloc como alocador primario)
+                LibCStdlib.free(decoded.pcm);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -221,7 +224,7 @@ public class AudioManager {
 
     public static synchronized void playHitSound() {
         VSRCraftSettings settings = VSRCraftSettings.get();
-        if (!settings.enableHitSounds) return; // Hitsounds deshabilitados
+        if (!settings.enableHitSounds) return;
 
         initHitSoundPoolIfNeeded();
         if (!hitSoundInitialized || hitSoundBufferId == 0) return;
@@ -259,7 +262,7 @@ public class AudioManager {
                 hitSoundSources[i] = src;
             }
         } finally {
-            MemoryUtil.memFree(decoded.pcm);
+            LibCStdlib.free(decoded.pcm);
         }
     }
 
