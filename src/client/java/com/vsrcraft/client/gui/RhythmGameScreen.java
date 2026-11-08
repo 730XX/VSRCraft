@@ -5,13 +5,13 @@ import com.vsrcraft.client.config.KeybindConfig;
 import com.vsrcraft.client.config.RhythmConfig;
 import com.vsrcraft.client.config.VSRCraftSettings;
 import com.vsrcraft.client.domain.Beatmap;
+import com.vsrcraft.client.domain.BeatmapRepository;
 import com.vsrcraft.client.domain.Judgement;
+import com.vsrcraft.client.domain.ScoreTracker;
 import com.vsrcraft.client.engine.RhythmEngine;
 import com.vsrcraft.client.gui.renderer.JudgementHudRenderer;
 import com.vsrcraft.client.gui.renderer.LaneRenderer;
 import com.vsrcraft.client.gui.renderer.NoteRenderer;
-import com.vsrcraft.client.parser.OsuBeatmapParser;
-import com.vsrcraft.sound.ModSounds;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -20,7 +20,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-import java.io.InputStream;
+import java.util.List;
 
 public class RhythmGameScreen extends Screen {
     private final int keyCount;
@@ -38,7 +38,7 @@ public class RhythmGameScreen extends Screen {
     private long pausedNanoTime = 0L;
 
     public RhythmGameScreen() {
-        this(loadWhatsUpBeatmap());
+        this(getDefaultBeatmap());
     }
 
     public RhythmGameScreen(Beatmap beatmap) {
@@ -50,14 +50,10 @@ public class RhythmGameScreen extends Screen {
         this.leadInMs = Math.max(MIN_LEAD_IN_MS, beatmap.getAudioLeadInMs());
     }
 
-    private static Beatmap loadWhatsUpBeatmap() {
-        try {
-            InputStream stream = RhythmGameScreen.class.getResourceAsStream("/assets/vsrcraft/beatmaps/whatsup.osu");
-            if (stream != null) {
-                return OsuBeatmapParser.parse(stream);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+    private static Beatmap getDefaultBeatmap() {
+        List<Beatmap> maps = BeatmapRepository.getBeatmaps();
+        if (!maps.isEmpty()) {
+            return maps.get(0);
         }
         return new Beatmap("What's up, people?!", "MAXIMUM THE HORMONE", 4);
     }
@@ -74,7 +70,7 @@ public class RhythmGameScreen extends Screen {
             this.startNanoTime = System.nanoTime();
             this.musicStarted = false;
             this.engine.start(0);
-            AudioManager.preloadMusic(ModSounds.MUSIC_WHATSUP);
+            AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
         } else if (this.isPaused) {
             // Reanudando desde la pantalla de ajustes
             this.isPaused = false;
@@ -171,13 +167,13 @@ public class RhythmGameScreen extends Screen {
         // Metadata de la canción y estado arriba a la izquierda
         String status = currentSongTimeLong < 0
                 ? "PREPARATE (" + (-currentSongTimeLong / 1000 + 1) + "s)"
-                : (currentSongTimeLong / 1000) + "s / " + currentSongTimeLong + "ms";
-        String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getNotes().size() + " Notes] - " + status;
+                : (currentSongTimeLong / 1000) + "s / " + (engine.getBeatmap().getDurationMs() / 1000) + "s";
+        String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getVersion() + "] - " + status;
         guiGraphics.drawString(this.font, songInfo, 12, 10, 0xFFE0E0E0, true);
 
         // Mensaje de ayuda abajo a la izquierda
         String offsetStr = (VSRCraftSettings.get().globalAudioOffsetMs >= 0 ? "+" : "") + VSRCraftSettings.get().globalAudioOffsetMs + "ms";
-        String help = String.format("Scroll: %.2fx | Offset: %s | HitPos: %dpx | Clic en ⚙ para Ajustes",
+        String help = String.format("ESC: Volver a Canciones | Scroll: %.2fx | Offset: %s | HitPos: %dpx",
                 VSRCraftSettings.get().scrollSpeed, offsetStr, RhythmConfig.getHitLineOffsetBottom());
         guiGraphics.drawString(this.font, help, 12, this.height - 18, 0xFF777777, false);
     }
@@ -241,10 +237,33 @@ public class RhythmGameScreen extends Screen {
         return super.keyReleased(event);
     }
 
+    private void saveSessionRecordIfValid() {
+        ScoreTracker tracker = this.engine.getScoreTracker();
+        if (tracker.getTotalJudged() > 0 && tracker.getScore() > 0) {
+            VSRCraftSettings.get().updatePersonalBest(
+                    this.engine.getBeatmap().getId(),
+                    tracker.getScore(),
+                    tracker.getAccuracy(),
+                    tracker.getMaxCombo(),
+                    tracker.getRank()
+            );
+        }
+    }
+
+    @Override
+    public void onClose() {
+        saveSessionRecordIfValid();
+        AudioManager.stopMusic();
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(new SongSelectScreen(this.engine.getBeatmap()));
+        }
+    }
+
     @Override
     public void removed() {
         super.removed();
         if (!this.isPaused) {
+            saveSessionRecordIfValid();
             AudioManager.stopMusic();
         }
     }

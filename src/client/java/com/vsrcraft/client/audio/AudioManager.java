@@ -11,10 +11,13 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.libc.LibCStdlib;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -40,6 +43,7 @@ public class AudioManager {
 
     // Estado de la pista musical en OpenAL
     private static CompletableFuture<DecodedAudio> preloadFuture = null;
+    private static String currentAudioPath = null;
     private static int musicBufferId = 0;
     private static int musicSourceId = 0;
     private static int musicSampleRate = 44100;
@@ -48,6 +52,11 @@ public class AudioManager {
     private static boolean musicPlaying = false;
     private static boolean musicPaused = false;
     private static boolean musicFinished = false;
+
+    // Estado para el Preview de audio en el Selector de Canciones
+    private static boolean pendingPreview = false;
+    private static long pendingPreviewOffsetMs = 0L;
+    private static boolean previewMode = false;
 
     // Estado del Reloj Maestro Híbrido (OpenAL Sample Offset + Interpolación NanoTime)
     private static int lastSampleOffset = -1;
@@ -74,12 +83,62 @@ public class AudioManager {
     public static synchronized void preloadMusicFromResource(String resourcePath) {
         stopMusic();
 
+        if (resourcePath == null || resourcePath.isEmpty()) {
+            resourcePath = "/assets/vsrcraft/sounds/music/whatsup.ogg";
+        }
+
         Minecraft client = Minecraft.getInstance();
         if (client != null && client.getMusicManager() != null) {
             client.getMusicManager().stopPlaying();
         }
 
-        preloadFuture = CompletableFuture.supplyAsync(() -> decodeOggResource(resourcePath));
+        currentAudioPath = resourcePath;
+        final String pathToLoad = resourcePath;
+        preloadFuture = CompletableFuture.supplyAsync(() -> decodeOggResource(pathToLoad));
+    }
+
+    /**
+     * Solicita reproducir el preview de una canción en el selector de beatmaps (sin bloquear el hilo de render).
+     */
+    public static synchronized void requestPreview(String resourcePath, long previewTimeMs) {
+        if (resourcePath == null || resourcePath.isEmpty()) return;
+
+        // Si ya está sonando o cargando exactamente este mismo preview, no reiniciarlo
+        if (previewMode && Objects.equals(currentAudioPath, resourcePath) && (musicPlaying || preloadFuture != null)) {
+            return;
+        }
+
+        preloadMusicFromResource(resourcePath);
+        previewMode = true;
+        pendingPreview = true;
+        pendingPreviewOffsetMs = Math.max(0L, previewTimeMs);
+    }
+
+    /**
+     * Llamado en cada fotograma de SongSelectScreen para arrancar el preview apenas termine la decodificación asíncrona.
+     */
+    public static synchronized void updatePreview() {
+        if (!pendingPreview) return;
+        if (!ensureMusicReady() || musicSourceId == 0) return;
+
+        pendingPreview = false;
+        previewMode = true;
+        updateMusicVolume();
+        AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_TRUE);
+        AL10.alSourceRewind(musicSourceId);
+
+        float seekSeconds = pendingPreviewOffsetMs / 1000.0f;
+        if (musicDurationMs > 0 && pendingPreviewOffsetMs >= musicDurationMs) {
+            seekSeconds = (musicDurationMs * 0.35f) / 1000.0f;
+        }
+        if (seekSeconds > 0.0f) {
+            AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, seekSeconds);
+        }
+
+        AL10.alSourcePlay(musicSourceId);
+        musicPlaying = true;
+        musicPaused = false;
+        musicFinished = false;
     }
 
     public static synchronized boolean ensureMusicReady() {
@@ -137,8 +196,12 @@ public class AudioManager {
     public static synchronized void startPreloadedMusic() {
         if (!ensureMusicReady() || musicSourceId == 0) return;
 
+        previewMode = false;
+        pendingPreview = false;
         updateMusicVolume();
+        AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_FALSE);
         AL10.alSourceRewind(musicSourceId);
+        AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, 0.0f);
         AL10.alSourcePlay(musicSourceId);
 
         long now = System.nanoTime();
@@ -280,18 +343,32 @@ public class AudioManager {
             AL10.alDeleteBuffers(musicBufferId);
             musicBufferId = 0;
         }
+        currentAudioPath = null;
         musicReady = false;
         musicPlaying = false;
         musicPaused = false;
         musicFinished = false;
+        pendingPreview = false;
+        previewMode = false;
         lastSampleOffset = -1;
         lastHardwareTimeMs = 0.0;
         lastReturnedTimeMs = 0.0;
     }
 
+    private static InputStream openAudioStream(String resourcePath) throws Exception {
+        if (resourcePath.startsWith("file:")) {
+            File file = new File(resourcePath.substring("file:".length()));
+            if (file.exists() && file.isFile()) {
+                return new FileInputStream(file);
+            }
+            return null;
+        }
+        return AudioManager.class.getResourceAsStream(resourcePath);
+    }
+
     private static DecodedAudio decodeOggResource(String resourcePath) {
         ByteBuffer vorbisBytes = null;
-        try (InputStream stream = AudioManager.class.getResourceAsStream(resourcePath)) {
+        try (InputStream stream = openAudioStream(resourcePath)) {
             if (stream == null) {
                 System.err.println("[VSRCraft] No se encontró el recurso de audio: " + resourcePath);
                 return null;

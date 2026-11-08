@@ -8,6 +8,8 @@ import org.lwjgl.glfw.GLFW;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Modelo de datos persistente para las configuraciones y personalizaciones de VSRCraft.
@@ -17,6 +19,22 @@ public class VSRCraftSettings {
     private static final File CONFIG_FILE = new File(FabricLoader.getInstance().getConfigDir().toFile(), "vsrcraft.json");
 
     private static VSRCraftSettings instance;
+
+    public static class BeatmapRecord {
+        public int bestScore = 0;
+        public float bestAccuracy = 0.0f;
+        public int bestCombo = 0;
+        public String bestRank = "-";
+
+        public BeatmapRecord() {}
+
+        public BeatmapRecord(int bestScore, float bestAccuracy, int bestCombo, String bestRank) {
+            this.bestScore = bestScore;
+            this.bestAccuracy = bestAccuracy;
+            this.bestCombo = bestCombo;
+            this.bestRank = bestRank;
+        }
+    }
 
     // 1. Audio
     public float musicVolume = 0.5f;       // Por defecto 50%
@@ -34,7 +52,7 @@ public class VSRCraftSettings {
     public boolean enableLaneGlow = false; // Hit glow al presionar carril
     public float backgroundDim = 0.6f;     // Oscurecimiento de pantalla completa (0.0 = nada, 1.0 = negro total)
 
-    // 4. Teclas / Keybinds (4K por defecto: D, F, J, K o W, D, L, P)
+    // 4. Teclas / Keybinds (4K por defecto: D, F, J, K)
     public int[] keybinds4K = {
             GLFW.GLFW_KEY_D,
             GLFW.GLFW_KEY_F,
@@ -42,11 +60,31 @@ public class VSRCraftSettings {
             GLFW.GLFW_KEY_K
     };
 
+    // 5. Récords personales por Beatmap ID
+    public Map<String, BeatmapRecord> personalBests = new HashMap<>();
+
     public static synchronized VSRCraftSettings get() {
         if (instance == null) {
             load();
         }
         return instance;
+    }
+
+    public synchronized void updatePersonalBest(String beatmapId, int score, float accuracy, int maxCombo, String rank) {
+        if (beatmapId == null || beatmapId.isEmpty() || score <= 0) return;
+        if (personalBests == null) {
+            personalBests = new HashMap<>();
+        }
+        BeatmapRecord existing = personalBests.get(beatmapId);
+        if (existing == null || score > existing.bestScore) {
+            personalBests.put(beatmapId, new BeatmapRecord(score, accuracy, maxCombo, rank));
+            save();
+        }
+    }
+
+    public synchronized BeatmapRecord getPersonalBest(String beatmapId) {
+        if (personalBests == null || beatmapId == null) return null;
+        return personalBests.get(beatmapId);
     }
 
     public static synchronized void load() {
@@ -67,6 +105,9 @@ public class VSRCraftSettings {
             }
             if (instance.hitPositionOffsetBottom <= 0) {
                 instance.hitPositionOffsetBottom = 60;
+            }
+            if (instance.personalBests == null) {
+                instance.personalBests = new HashMap<>();
             }
         }
     }

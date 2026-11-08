@@ -7,21 +7,36 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public class OsuBeatmapParser {
 
     public static Beatmap parse(InputStream inputStream) throws Exception {
+        return parse(inputStream, "");
+    }
+
+    public static Beatmap parse(InputStream inputStream, String defaultAudioResourcePath) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
         String line;
 
         String currentSection = "";
+        String beatmapId = "";
         String title = "Unknown Title";
         String artist = "Unknown Artist";
+        String creator = "Unknown Mapper";
+        String version = "Normal";
+        String source = "";
+        String tags = "";
         String audioFilename = "";
         long audioLeadInMs = 0L;
+        long previewTimeMs = 0L;
         int circleSize = 4; // Teclas por defecto (4K)
+        float overallDifficulty = 7.0f;
+        float hpDrainRate = 7.0f;
+        int bpm = 0;
 
-        Beatmap beatmap = null;
+        List<String> rawHitObjects = new ArrayList<>();
 
         while ((line = reader.readLine()) != null) {
             line = line.trim();
@@ -29,9 +44,6 @@ public class OsuBeatmapParser {
 
             if (line.startsWith("[") && line.endsWith("]")) {
                 currentSection = line.substring(1, line.length() - 1);
-                if (currentSection.equals("HitObjects") && beatmap == null) {
-                    beatmap = new Beatmap(title, artist, circleSize, audioFilename, audioLeadInMs);
-                }
                 continue;
             }
 
@@ -43,6 +55,10 @@ public class OsuBeatmapParser {
                         try {
                             audioLeadInMs = Long.parseLong(line.substring("AudioLeadIn:".length()).trim());
                         } catch (NumberFormatException ignored) {}
+                    } else if (line.startsWith("PreviewTime:")) {
+                        try {
+                            previewTimeMs = Math.max(0L, Long.parseLong(line.substring("PreviewTime:".length()).trim()));
+                        } catch (NumberFormatException ignored) {}
                     }
                 }
                 case "Metadata" -> {
@@ -50,26 +66,77 @@ public class OsuBeatmapParser {
                         title = line.substring("Title:".length()).trim();
                     } else if (line.startsWith("Artist:")) {
                         artist = line.substring("Artist:".length()).trim();
+                    } else if (line.startsWith("Creator:")) {
+                        creator = line.substring("Creator:".length()).trim();
+                    } else if (line.startsWith("Version:")) {
+                        version = line.substring("Version:".length()).trim();
+                    } else if (line.startsWith("Source:")) {
+                        source = line.substring("Source:".length()).trim();
+                    } else if (line.startsWith("Tags:")) {
+                        tags = line.substring("Tags:".length()).trim();
+                    } else if (line.startsWith("BeatmapID:")) {
+                        beatmapId = line.substring("BeatmapID:".length()).trim();
                     }
                 }
                 case "Difficulty" -> {
                     if (line.startsWith("CircleSize:")) {
                         try {
-                            circleSize = (int) Float.parseFloat(line.substring("CircleSize:".length()).trim());
+                            circleSize = Math.max(1, (int) Float.parseFloat(line.substring("CircleSize:".length()).trim()));
+                        } catch (NumberFormatException ignored) {}
+                    } else if (line.startsWith("OverallDifficulty:")) {
+                        try {
+                            overallDifficulty = Float.parseFloat(line.substring("OverallDifficulty:".length()).trim());
+                        } catch (NumberFormatException ignored) {}
+                    } else if (line.startsWith("HPDrainRate:")) {
+                        try {
+                            hpDrainRate = Float.parseFloat(line.substring("HPDrainRate:".length()).trim());
                         } catch (NumberFormatException ignored) {}
                     }
                 }
-                case "HitObjects" -> {
-                    if (beatmap == null) {
-                        beatmap = new Beatmap(title, artist, circleSize, audioFilename, audioLeadInMs);
+                case "TimingPoints" -> {
+                    if (bpm <= 0) {
+                        String[] parts = line.split(",");
+                        if (parts.length >= 2) {
+                            try {
+                                double beatLength = Double.parseDouble(parts[1].trim());
+                                if (beatLength > 0.0) {
+                                    bpm = (int) Math.round(60000.0 / beatLength);
+                                }
+                            } catch (NumberFormatException ignored) {}
+                        }
                     }
-                    parseHitObject(line, beatmap, circleSize);
                 }
+                case "HitObjects" -> rawHitObjects.add(line);
             }
         }
 
-        if (beatmap == null) {
-            beatmap = new Beatmap(title, artist, circleSize, audioFilename, audioLeadInMs);
+        if (bpm <= 0) {
+            bpm = 120;
+        }
+        if (beatmapId.isEmpty() || beatmapId.equals("0")) {
+            beatmapId = (title + "_" + artist + "_" + version).replaceAll("[^a-zA-Z0-9_-]", "_");
+        }
+
+        Beatmap beatmap = new Beatmap(
+                beatmapId,
+                title,
+                artist,
+                creator,
+                version,
+                source,
+                tags,
+                circleSize,
+                overallDifficulty,
+                hpDrainRate,
+                bpm,
+                audioFilename,
+                defaultAudioResourcePath,
+                audioLeadInMs,
+                previewTimeMs
+        );
+
+        for (String objLine : rawHitObjects) {
+            parseHitObject(objLine, beatmap, circleSize);
         }
 
         beatmap.sortNotes();
