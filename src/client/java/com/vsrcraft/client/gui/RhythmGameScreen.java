@@ -12,7 +12,6 @@ import com.vsrcraft.client.gui.renderer.LaneRenderer;
 import com.vsrcraft.client.gui.renderer.NoteRenderer;
 import com.vsrcraft.client.parser.OsuBeatmapParser;
 import com.vsrcraft.sound.ModSounds;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -150,38 +149,36 @@ public class RhythmGameScreen extends Screen {
         int boardStartX = (this.width - boardWidth) / 2;
         int hitLineY = this.height - RhythmConfig.HIT_LINE_OFFSET_BOTTOM;
 
-        // 1. Render de pista y carriles (aplica opacidad personalizada)
+        // 1. Render de pista y carriles (aplica opacidad y opción de hit glow)
         LaneRenderer.renderLanes(guiGraphics, this.font, boardStartX, boardWidth, hitLineY, this.height, keyCount, lanePressed);
 
         // 2. Render de notas cayendo (aplica velocidad y grosor configurado)
         NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount);
 
-        // 3. Render de información (Score, Combo, Juicio)
+        // 3. Render de información (Score a la izquierda, Combo y Juicio al medio)
         JudgementHudRenderer.renderHud(guiGraphics, this.font, engine.getScoreTracker(), engine.getLastJudgement(), boardStartX, hitLineY, this.width, this.height);
 
-        // Metadata de la canción y estado
+        // Metadata de la canción y estado arriba a la izquierda
         String status = currentSongTimeLong < 0
                 ? "PREPARATE (" + (-currentSongTimeLong / 1000 + 1) + "s)"
                 : (currentSongTimeLong / 1000) + "s / " + currentSongTimeLong + "ms";
         String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getNotes().size() + " Notes] - " + status;
-        guiGraphics.drawString(this.font, songInfo, (this.width - this.font.width(songInfo)) / 2, 8, 0xFFE0E0E0, true);
+        guiGraphics.drawString(this.font, songInfo, 12, 10, 0xFFE0E0E0, true);
 
-        // Mensaje de ayuda
+        // Mensaje de ayuda abajo a la izquierda
         String offsetStr = (VSRCraftSettings.get().globalAudioOffsetMs >= 0 ? "+" : "") + VSRCraftSettings.get().globalAudioOffsetMs + "ms";
         String help = String.format("Teclas: W, D, L, P | Scroll: %.2fx | Offset: %s | Clic en ⚙ para Ajustes",
                 VSRCraftSettings.get().scrollSpeed, offsetStr);
-        guiGraphics.drawString(this.font, help, (this.width - this.font.width(help)) / 2, this.height - 20, 0xFF777777, false);
+        guiGraphics.drawString(this.font, help, 12, this.height - 18, 0xFF777777, false);
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        // Atajo rápido para abrir configuración: tecla 'O'
         if (event.key() == GLFW.GLFW_KEY_O) {
             openSettingsScreen();
             return true;
         }
 
-        // Atajos rápidos para velocidad de scroll (F3 / F4)
         if (event.key() == GLFW.GLFW_KEY_F3) {
             VSRCraftSettings.get().scrollSpeed = Math.max(0.2f, VSRCraftSettings.get().scrollSpeed - 0.05f);
             VSRCraftSettings.save();
@@ -193,7 +190,6 @@ public class RhythmGameScreen extends Screen {
             return true;
         }
 
-        // Offset global en vivo (Flecha Izq / Der)
         if (event.key() == GLFW.GLFW_KEY_LEFT || event.key() == GLFW.GLFW_KEY_MINUS) {
             VSRCraftSettings.get().globalAudioOffsetMs -= 5L;
             VSRCraftSettings.save();

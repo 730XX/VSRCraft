@@ -29,6 +29,7 @@ public class VSRCraftSettings {
 
     // 3. Estética / Pista
     public float laneAlpha = 0.8f;         // Opacidad de pista (0.0 = transparente, 1.0 = opaco)
+    public boolean enableLaneGlow = false; // Hit glow al presionar carril (desactivado por defecto o configurable)
 
     public static synchronized VSRCraftSettings get() {
         if (instance == null) {

@@ -2,6 +2,7 @@ package com.vsrcraft.client.gui.renderer;
 
 import com.vsrcraft.client.config.LaneTheme;
 import com.vsrcraft.client.config.RhythmConfig;
+import com.vsrcraft.client.config.VSRCraftSettings;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -10,13 +11,15 @@ public class LaneRenderer {
         // Fondo de la pista con opacidad configurable
         graphics.fill(boardStartX - 2, 0, boardStartX + boardWidth + 2, screenHeight, LaneTheme.getTrackBackgroundColor());
 
-        // Separadores y luces de presión
+        // Separadores y luces de presión (hit glow)
         int dividerColor = LaneTheme.getLaneDividerColor();
+        boolean allowGlow = VSRCraftSettings.get().enableLaneGlow;
+
         for (int i = 0; i < laneCount; i++) {
             int laneX = boardStartX + (i * RhythmConfig.LANE_WIDTH);
             graphics.fill(laneX, 0, laneX + 1, screenHeight, dividerColor);
 
-            if (lanePressed != null && i < lanePressed.length && lanePressed[i]) {
+            if (allowGlow && lanePressed != null && i < lanePressed.length && lanePressed[i]) {
                 graphics.fill(laneX + 1, 0, laneX + RhythmConfig.LANE_WIDTH, screenHeight, LaneTheme.LANE_PRESS_GLOW);
             }
         }

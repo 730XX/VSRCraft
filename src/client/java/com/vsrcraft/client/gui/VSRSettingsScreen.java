@@ -5,7 +5,6 @@ import com.vsrcraft.client.config.VSRCraftSettings;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -23,9 +22,9 @@ public class VSRSettingsScreen extends Screen {
         VSRCraftSettings settings = VSRCraftSettings.get();
 
         int centerX = this.width / 2;
-        int startY = 40;
+        int startY = 36;
         int buttonWidth = 240;
-        int spacing = 26;
+        int spacing = 24;
         int row = 0;
 
         // 1. Slider: Volumen de Música (0% - 100%)
@@ -73,7 +72,17 @@ public class VSRSettingsScreen extends Screen {
         ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
         this.addRenderableWidget(hitSoundToggle);
 
-        // 4. Slider: Velocidad de Scroll (0.2 a 1.2 px/ms)
+        // 4. Botón: Activar / Desactivar Hit Glow de los Carriles
+        Button laneGlowToggle = Button.builder(
+                getLaneGlowToggleText(settings.enableLaneGlow),
+                btn -> {
+                    settings.enableLaneGlow = !settings.enableLaneGlow;
+                    btn.setMessage(getLaneGlowToggleText(settings.enableLaneGlow));
+                }
+        ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
+        this.addRenderableWidget(laneGlowToggle);
+
+        // 5. Slider: Velocidad de Scroll (0.2 a 1.2 px/ms)
         double scrollNorm = (settings.scrollSpeed - 0.2) / (1.2 - 0.2);
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
@@ -92,7 +101,7 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // 5. Slider: Opacidad de Carriles (10% - 100%)
+        // 6. Slider: Opacidad de Carriles (5% - 100%)
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
                 Component.literal("Opacidad Pista: " + Math.round(settings.laneAlpha * 100) + "%"),
@@ -109,7 +118,7 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // 6. Slider: Altura / Grosor de Notas (6px a 24px)
+        // 7. Slider: Altura / Grosor de Notas (6px a 24px)
         double heightNorm = (settings.noteHeight - 6.0) / (24.0 - 6.0);
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
@@ -128,7 +137,7 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // 7. Slider: Offset Global de Audio (-100ms a +100ms)
+        // 8. Slider: Offset Global de Audio (-100ms a +100ms)
         double offsetNorm = (settings.globalAudioOffsetMs + 100.0) / 200.0;
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
@@ -151,21 +160,21 @@ public class VSRSettingsScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                 Component.literal("Listo / Guardar"),
                 btn -> this.onClose()
-        ).bounds(centerX - buttonWidth / 2, this.height - 35, buttonWidth, 20).build());
+        ).bounds(centerX - buttonWidth / 2, this.height - 30, buttonWidth, 20).build());
     }
 
     private static Component getHitSoundToggleText(boolean enabled) {
         return Component.literal("Efectos HitSound: " + (enabled ? "§aACTIVADOS" : "§cDESACTIVADOS"));
     }
 
+    private static Component getLaneGlowToggleText(boolean enabled) {
+        return Component.literal("Hit Glow de Carriles: " + (enabled ? "§aACTIVADO" : "§cDESACTIVADO"));
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Fondo translúcido oscuro
         graphics.fillGradient(0, 0, this.width, this.height, 0xD0101010, 0xE0101010);
-
-        // Título
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 16, 0xFFFFFF);
-
+        graphics.drawCenteredString(this.font, this.title, this.width / 2, 14, 0xFFFFFF);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
