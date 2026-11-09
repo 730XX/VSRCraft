@@ -1,0 +1,793 @@
+﻿{
+    "meta":  {
+                 "format_version":  "4.10",
+                 "model_format":  "minecraft_block",
+                 "box_uv":  false
+             },
+    "name":  "rhythm_arcade",
+    "resolution":  {
+                       "width":  16,
+                       "height":  16
+                   },
+    "elements":  [
+                     {
+                         "name":  "base_pedestal",
+                         "type":  "cube",
+                         "from":  [
+                                      1,
+                                      0,
+                                      1
+                                  ],
+                         "to":  [
+                                    15,
+                                    2,
+                                    15
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                1,
+                                                                15,
+                                                                15,
+                                                                16
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                1,
+                                                                15,
+                                                                15,
+                                                                16
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               1,
+                                                               15,
+                                                               15,
+                                                               16
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               1,
+                                                               15,
+                                                               15,
+                                                               16
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             1,
+                                                             1,
+                                                             15,
+                                                             15
+                                                         ],
+                                                  "texture":  3
+                                              },
+                                       "down":  {
+                                                    "uv":  [
+                                                               1,
+                                                               1,
+                                                               15,
+                                                               15
+                                                           ],
+                                                    "texture":  2
+                                                }
+                                   },
+                         "uuid":  "1a74785b-dd91-4364-88a3-277da83c1b73"
+                     },
+                     {
+                         "name":  "lower_cabinet_body",
+                         "type":  "cube",
+                         "from":  [
+                                      2,
+                                      2,
+                                      3
+                                  ],
+                         "to":  [
+                                    14,
+                                    12,
+                                    14
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                2,
+                                                                10.5,
+                                                                14,
+                                                                15
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                2,
+                                                                10.5,
+                                                                14,
+                                                                15
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               3,
+                                                               10.5,
+                                                               14,
+                                                               15
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               2,
+                                                               10.5,
+                                                               13,
+                                                               15
+                                                           ],
+                                                    "texture":  1
+                                                }
+                                   },
+                         "uuid":  "7539b106-0991-4d89-9393-a1a390e2ab0f"
+                     },
+                     {
+                         "name":  "front_disc_slot_bezel",
+                         "type":  "cube",
+                         "from":  [
+                                      4,
+                                      6,
+                                      2
+                                  ],
+                         "to":  [
+                                    12,
+                                    9,
+                                    3
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                4,
+                                                                11.5,
+                                                                12,
+                                                                13
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               0,
+                                                               8,
+                                                               1,
+                                                               11
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               0,
+                                                               8,
+                                                               1,
+                                                               11
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             4,
+                                                             8,
+                                                             12,
+                                                             9
+                                                         ],
+                                                  "texture":  4
+                                              },
+                                       "down":  {
+                                                    "uv":  [
+                                                               4,
+                                                               11,
+                                                               12,
+                                                               12
+                                                           ],
+                                                    "texture":  4
+                                                }
+                                   },
+                         "uuid":  "b87054ed-13d1-4fa2-9f81-7113decb8fcc"
+                     },
+                     {
+                         "name":  "control_deck_tray",
+                         "type":  "cube",
+                         "from":  [
+                                      1,
+                                      12,
+                                      1
+                                  ],
+                         "to":  [
+                                    15,
+                                    14,
+                                    14
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                1,
+                                                                9,
+                                                                15,
+                                                                10
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                1,
+                                                                9,
+                                                                15,
+                                                                10
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               1,
+                                                               9,
+                                                               14,
+                                                               10
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               2,
+                                                               9,
+                                                               15,
+                                                               10
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             1,
+                                                             8,
+                                                             15,
+                                                             16
+                                                         ],
+                                                  "texture":  4
+                                              },
+                                       "down":  {
+                                                    "uv":  [
+                                                               1,
+                                                               1,
+                                                               15,
+                                                               14
+                                                           ],
+                                                    "texture":  2
+                                                }
+                                   },
+                         "uuid":  "3952e0b5-9748-4fd4-b85b-968f56582c29"
+                     },
+                     {
+                         "name":  "key_lane_1_cyan",
+                         "type":  "cube",
+                         "from":  [
+                                      2,
+                                      14,
+                                      2
+                                  ],
+                         "to":  [
+                                    4,
+                                    15.5,
+                                    6
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                1,
+                                                                4,
+                                                                3,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                1,
+                                                                4,
+                                                                3,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               1,
+                                                               4,
+                                                               5,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               1,
+                                                               4,
+                                                               5,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             1,
+                                                             1,
+                                                             3,
+                                                             5
+                                                         ],
+                                                  "texture":  4
+                                              }
+                                   },
+                         "uuid":  "f892713e-c5bc-413f-9dba-60f043a0d422"
+                     },
+                     {
+                         "name":  "key_lane_2_white",
+                         "type":  "cube",
+                         "from":  [
+                                      5.3,
+                                      14,
+                                      2
+                                  ],
+                         "to":  [
+                                    7.3,
+                                    15.5,
+                                    6
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                9,
+                                                                4,
+                                                                11,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                9,
+                                                                4,
+                                                                11,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               9,
+                                                               4,
+                                                               13,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               9,
+                                                               4,
+                                                               13,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             9,
+                                                             1,
+                                                             11,
+                                                             5
+                                                         ],
+                                                  "texture":  4
+                                              }
+                                   },
+                         "uuid":  "5b006815-a267-47fb-9c85-dd5f32b2e471"
+                     },
+                     {
+                         "name":  "key_lane_3_white",
+                         "type":  "cube",
+                         "from":  [
+                                      8.7,
+                                      14,
+                                      2
+                                  ],
+                         "to":  [
+                                    10.7,
+                                    15.5,
+                                    6
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                9,
+                                                                4,
+                                                                11,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                9,
+                                                                4,
+                                                                11,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               9,
+                                                               4,
+                                                               13,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               9,
+                                                               4,
+                                                               13,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             9,
+                                                             1,
+                                                             11,
+                                                             5
+                                                         ],
+                                                  "texture":  4
+                                              }
+                                   },
+                         "uuid":  "f840bbdd-fd55-4490-bf29-9621509e4ac5"
+                     },
+                     {
+                         "name":  "key_lane_4_cyan",
+                         "type":  "cube",
+                         "from":  [
+                                      12,
+                                      14,
+                                      2
+                                  ],
+                         "to":  [
+                                    14,
+                                    15.5,
+                                    6
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                1,
+                                                                4,
+                                                                3,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                1,
+                                                                4,
+                                                                3,
+                                                                6
+                                                            ],
+                                                     "texture":  4
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               1,
+                                                               4,
+                                                               5,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               1,
+                                                               4,
+                                                               5,
+                                                               6
+                                                           ],
+                                                    "texture":  4
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             1,
+                                                             1,
+                                                             3,
+                                                             5
+                                                         ],
+                                                  "texture":  4
+                                              }
+                                   },
+                         "uuid":  "9e6f508e-3114-4b01-b36e-598d3d70cc0b"
+                     },
+                     {
+                         "name":  "upper_crt_monitor_cabinet",
+                         "type":  "cube",
+                         "from":  [
+                                      2,
+                                      14,
+                                      6
+                                  ],
+                         "to":  [
+                                    14,
+                                    28,
+                                    14
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                2,
+                                                                2.5,
+                                                                14,
+                                                                9
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                2,
+                                                                2.5,
+                                                                14,
+                                                                9
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               6,
+                                                               2.5,
+                                                               14,
+                                                               9
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               2,
+                                                               2.5,
+                                                               10,
+                                                               9
+                                                           ],
+                                                    "texture":  1
+                                                }
+                                   },
+                         "uuid":  "af34a82e-bf47-4177-a252-95b7e52d3fa4"
+                     },
+                     {
+                         "name":  "left_cabinet_wing",
+                         "type":  "cube",
+                         "from":  [
+                                      1,
+                                      14,
+                                      6
+                                  ],
+                         "to":  [
+                                    2,
+                                    29,
+                                    14
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                0,
+                                                                2,
+                                                                1,
+                                                                9.5
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                15,
+                                                                2,
+                                                                16,
+                                                                9.5
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               6,
+                                                               2,
+                                                               14,
+                                                               9.5
+                                                           ],
+                                                    "texture":  1
+                                                }
+                                   },
+                         "uuid":  "b38e892b-1e5a-4361-9694-d2f8929361d3"
+                     },
+                     {
+                         "name":  "right_cabinet_wing",
+                         "type":  "cube",
+                         "from":  [
+                                      14,
+                                      14,
+                                      6
+                                  ],
+                         "to":  [
+                                    15,
+                                    29,
+                                    14
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                15,
+                                                                2,
+                                                                16,
+                                                                9.5
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                0,
+                                                                2,
+                                                                1,
+                                                                9.5
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "east":  {
+                                                    "uv":  [
+                                                               2,
+                                                               2,
+                                                               10,
+                                                               9.5
+                                                           ],
+                                                    "texture":  1
+                                                }
+                                   },
+                         "uuid":  "71c9f4a9-1319-4b8d-813f-6f37edab9b66"
+                     },
+                     {
+                         "name":  "top_marquee_hood",
+                         "type":  "cube",
+                         "from":  [
+                                      1,
+                                      28,
+                                      4
+                                  ],
+                         "to":  [
+                                    15,
+                                    30,
+                                    15
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                1,
+                                                                0,
+                                                                15,
+                                                                2
+                                                            ],
+                                                     "texture":  0
+                                                 },
+                                       "south":  {
+                                                     "uv":  [
+                                                                1,
+                                                                0,
+                                                                15,
+                                                                2
+                                                            ],
+                                                     "texture":  2
+                                                 },
+                                       "west":  {
+                                                    "uv":  [
+                                                               4,
+                                                               0,
+                                                               15,
+                                                               2
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "east":  {
+                                                    "uv":  [
+                                                               1,
+                                                               0,
+                                                               12,
+                                                               2
+                                                           ],
+                                                    "texture":  1
+                                                },
+                                       "up":  {
+                                                  "uv":  [
+                                                             1,
+                                                             1,
+                                                             15,
+                                                             15
+                                                         ],
+                                                  "texture":  3
+                                              },
+                                       "down":  {
+                                                    "uv":  [
+                                                               1,
+                                                               8,
+                                                               15,
+                                                               12
+                                                           ],
+                                                    "texture":  4
+                                                }
+                                   },
+                         "uuid":  "d4d34b56-f3de-42c6-bf0c-a5a13fa6ae58"
+                     }
+                 ],
+    "textures":  [
+                     {
+                         "id":  "0",
+                         "name":  "rhythm_arcade_front.png",
+                         "folder":  "block",
+                         "namespace":  "vsrcraft",
+                         "uuid":  "37b64a47-729c-40e9-a42b-3bb6fadb0914",
+                         "source":  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAgCAYAAAAbifjMAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAADXSURBVEhLzZRNCsIwEEZzhqLQjVLqzj/ERVdF0GN4kt7KjTdw7cY7eAQ3bka+gaZJaOPE6cLFIx+BeUmnTEw2yUmDuZz3pMGsZtPO9iRvfb2JQaZNw7ino9YTuMV9Ane1gnm5JA2mqRekgQXuJ6TgCYr1gbK8ZKQ5KmgbGO5HBfgDAPl6ezBhUVQguYF7SFQgyWLB0G3EgqE8rqAdlhSsYFcdf8IKNOgflHBAUuEHRYNBMxBO2yIJ1KB2fEHYpBCRAM2he+2BvSRBH2JBjK8CKX8m0KCehQ9T/VlgYnKLLgAAAABJRU5ErkJggg==",
+                         "width":  16,
+                         "height":  16,
+                         "uv_width":  16,
+                         "uv_height":  16
+                     },
+                     {
+                         "id":  "1",
+                         "name":  "rhythm_arcade_side.png",
+                         "folder":  "block",
+                         "namespace":  "vsrcraft",
+                         "uuid":  "2fc5326b-653b-4adf-9706-43c2223dbad3",
+                         "source":  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAgCAYAAAAbifjMAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAADMSURBVEhL3ZUxCkJBDET3DKJgo4iloojF77+tNxAP4q08jsdZ2Q+BOJlNPn9BwWKaYfImBJZNs/kytyg9b+fcolQo+9VikoYNBPB6XPPluPnQvT9Qr2QNgAU9zwVEwy6gBPHSohCALZ5nADqIzXoDyRkAa/E8F4DNeoMQEDW7AAliM24QHtFr/s4Ro2EKkMeEQebRxzRF/3bEWrDmUYAE19sdlQYagG7BQQ0YdUQcFI0+Ig7qDUIAOxjzKIAFa54B/O5jOXV9btGwQYve3PEEfqH257EAAAAASUVORK5CYII=",
+                         "width":  16,
+                         "height":  16,
+                         "uv_width":  16,
+                         "uv_height":  16
+                     },
+                     {
+                         "id":  "2",
+                         "name":  "rhythm_arcade_back.png",
+                         "folder":  "block",
+                         "namespace":  "vsrcraft",
+                         "uuid":  "3f23ada1-fe1a-4c34-b66f-42082516c248",
+                         "source":  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAgCAYAAAAbifjMAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABlSURBVEhLYxASkfhPCWaosFH+TwlmAJnipKdAFga7gGoGaMuKkoSxGoBuAy48asCoAcPZABCNDV+v8MYQQ9ZD0AWgQgNdDKsLcBmADY8aMLwNIAVjGEAOpo4BBmaO/ynBYBdQggHvt/h0lT6mkQAAAABJRU5ErkJggg==",
+                         "width":  16,
+                         "height":  16,
+                         "uv_width":  16,
+                         "uv_height":  16
+                     },
+                     {
+                         "id":  "3",
+                         "name":  "rhythm_arcade_top.png",
+                         "folder":  "block",
+                         "namespace":  "vsrcraft",
+                         "uuid":  "b5a1ecdf-bbc2-4836-aa2f-56f00049a21a",
+                         "source":  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA0SURBVDhPYxASkfhPCWYAEeujjMjCKAbIKWmRhGlnALof0fGoASPDAGIx9Q0gB8MNoAQDAD5nfjRI75OfAAAAAElFTkSuQmCC",
+                         "width":  16,
+                         "height":  16,
+                         "uv_width":  16,
+                         "uv_height":  16
+                     },
+                     {
+                         "id":  "4",
+                         "name":  "rhythm_arcade_keys.png",
+                         "folder":  "block",
+                         "namespace":  "vsrcraft",
+                         "uuid":  "2dcc3a4e-d026-4ba9-a105-5ac93957c762",
+                         "source":  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABISURBVDhPY6j4+v8/PkwIMIAUMTzFgXsWgBV9/YUdbzl8adQA6hnQswAnBgGQQlyYYX2U0X9KMIOcktZ/SvCoAdQwAD1aSMUA0AB53zeYAWwAAAAASUVORK5CYII=",
+                         "width":  16,
+                         "height":  16,
+                         "uv_width":  16,
+                         "uv_height":  16
+                     }
+                 ]
+}
