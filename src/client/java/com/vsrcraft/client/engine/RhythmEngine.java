@@ -9,12 +9,10 @@ import com.vsrcraft.client.domain.ScoreTracker;
 import java.util.Arrays;
 
 /**
- * Motor central de ritmo y juicios de VSRCraft.
- * Soporta evaluación precisa de Taps y mecánica completa de Long Notes (Hold Notes):
- * - Juicio inicial al presionar la cabeza (Head Hit).
- * - Mantenimiento activo durante la duración del cuerpo (Holding).
- * - Juicio de corte prematuro (MISS) si se suelta antes de tiempo.
- * - Juicio de liberación final (Tail Release) al soltar a tiempo o mantener hasta el final.
+ * Motor central de ritmo, juicios y supervivencia de VSRCraft.
+ * Soporta:
+ * - Evaluación precisa de Taps y Long Notes (cabeza, sostenimiento y liberación).
+ * - Barra de vida lateral (HP) y condición de fallo (Stage Failed) según el HPDrainRate del beatmap.
  */
 public class RhythmEngine {
     private final Beatmap beatmap;
@@ -22,6 +20,10 @@ public class RhythmEngine {
     private final int keyCount;
     private final Note[] activeHolds;
     private Judgement lastJudgement = null;
+
+    // Sistema de Vida (HP) y Fallo (Fail Condition)
+    private float hp = 100.0f;
+    private boolean isFailed = false;
 
     public RhythmEngine(Beatmap beatmap) {
         this.beatmap = beatmap;
@@ -32,6 +34,9 @@ public class RhythmEngine {
 
     public void start(long ignored) {
         this.scoreTracker.reset();
+        this.hp = 100.0f;
+        this.isFailed = false;
+        this.lastJudgement = null;
         Arrays.fill(this.activeHolds, null);
         for (Note note : beatmap.getNotes()) {
             note.setHit(false);
@@ -40,7 +45,29 @@ public class RhythmEngine {
         }
     }
 
+    private void applyHpJudgement(Judgement judgement) {
+        if (this.isFailed) return;
+
+        float hpDrain = beatmap.getHpDrainRate();
+        float drainFactor = Math.max(0.6f, Math.min(2.0f, hpDrain / 5.0f));
+
+        switch (judgement) {
+            case MARVELOUS -> this.hp = Math.min(100.0f, this.hp + 3.0f);
+            case PERFECT -> this.hp = Math.min(100.0f, this.hp + 2.0f);
+            case GREAT -> this.hp = Math.min(100.0f, this.hp + 0.8f);
+            case BAD -> this.hp = Math.max(0.0f, this.hp - 4.0f * drainFactor);
+            case MISS -> this.hp = Math.max(0.0f, this.hp - 8.5f * drainFactor);
+        }
+
+        if (this.hp <= 0.0f) {
+            this.hp = 0.0f;
+            this.isFailed = true;
+        }
+    }
+
     public void update(long currentSongTimeMs) {
+        if (this.isFailed) return;
+
         // 1. Chequear notas cuya cabeza pasó de largo sin ser presionadas (Miss)
         for (Note note : beatmap.getNotes()) {
             if (!note.isHit() && !note.isMissed()) {
@@ -52,6 +79,7 @@ public class RhythmEngine {
                     }
                     this.lastJudgement = Judgement.MISS;
                     this.scoreTracker.registerJudgement(Judgement.MISS);
+                    applyHpJudgement(Judgement.MISS);
                 }
             }
         }
@@ -66,13 +94,14 @@ public class RhythmEngine {
                     this.activeHolds[lane] = null;
                     this.lastJudgement = Judgement.MARVELOUS;
                     this.scoreTracker.registerJudgement(Judgement.MARVELOUS);
+                    applyHpJudgement(Judgement.MARVELOUS);
                 }
             }
         }
     }
 
     public Judgement onLanePressed(int lane, long currentSongTimeMs) {
-        if (lane < 0 || lane >= keyCount) return null;
+        if (this.isFailed || lane < 0 || lane >= keyCount) return null;
 
         Note closestNote = null;
         long minDelta = Long.MAX_VALUE;
@@ -92,6 +121,7 @@ public class RhythmEngine {
             Judgement judgement = Judgement.fromDelta(minDelta);
             this.lastJudgement = judgement;
             this.scoreTracker.registerJudgement(judgement);
+            applyHpJudgement(judgement);
 
             // Si es una nota HOLD y no se falló, entra en estado HOLDING activo
             if (judgement != Judgement.MISS && closestNote.getType() == Note.Type.HOLD && closestNote.getDurationMs() > 0) {
@@ -106,7 +136,7 @@ public class RhythmEngine {
     }
 
     public Judgement onLaneReleased(int lane, long currentSongTimeMs) {
-        if (lane < 0 || lane >= keyCount) return null;
+        if (this.isFailed || lane < 0 || lane >= keyCount) return null;
 
         Note holdNote = this.activeHolds[lane];
         if (holdNote != null) {
@@ -121,6 +151,7 @@ public class RhythmEngine {
                     holdNote.setHoldState(Note.HoldState.DROPPED);
                     this.lastJudgement = Judgement.MISS;
                     this.scoreTracker.registerJudgement(Judgement.MISS);
+                    applyHpJudgement(Judgement.MISS);
                     return Judgement.MISS;
                 } else {
                     // Soltó dentro de la ventana de liberación final
@@ -129,6 +160,7 @@ public class RhythmEngine {
                     Judgement tailJudgement = Judgement.fromDelta(absDelta);
                     this.lastJudgement = tailJudgement;
                     this.scoreTracker.registerJudgement(tailJudgement);
+                    applyHpJudgement(tailJudgement);
                     return tailJudgement;
                 }
             }
@@ -141,6 +173,8 @@ public class RhythmEngine {
         return lane >= 0 && lane < keyCount && this.activeHolds[lane] != null && this.activeHolds[lane].isHolding();
     }
 
+    public float getHp() { return hp; }
+    public boolean isFailed() { return isFailed; }
     public Beatmap getBeatmap() { return beatmap; }
     public ScoreTracker getScoreTracker() { return scoreTracker; }
     public Judgement getLastJudgement() { return lastJudgement; }

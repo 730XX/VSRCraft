@@ -14,7 +14,9 @@ import org.lwjgl.glfw.GLFW;
 public class VSRSettingsScreen extends Screen {
     private final Screen parentScreen;
     private int listeningLane = -1;
-    private Button[] keybindButtons = new Button[4];
+    private int editingKeyMode = 4; // 4K o 7K
+    private Button[] keybindButtons = new Button[7];
+    private Button keyModeToggleButton;
 
     public VSRSettingsScreen(Screen parentScreen) {
         super(Component.literal("Configuración de VSRCraft"));
@@ -27,9 +29,9 @@ public class VSRSettingsScreen extends Screen {
         VSRCraftSettings settings = VSRCraftSettings.get();
 
         int centerX = this.width / 2;
-        int startY = 28;
+        int startY = 24;
         int buttonWidth = 240;
-        int spacing = 22;
+        int spacing = 21;
         int row = 0;
 
         // 1. Slider: Volumen de Música (0% - 100%)
@@ -81,13 +83,13 @@ public class VSRSettingsScreen extends Screen {
         double scrollNorm = (settings.scrollSpeed - 0.2) / (1.2 - 0.2);
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
-                Component.literal(String.format("Velocidad Scroll: %.2fx", settings.scrollSpeed)),
+                Component.literal(String.format(java.util.Locale.ROOT, "Velocidad Scroll: %.2fx", settings.scrollSpeed)),
                 Math.max(0.0, Math.min(1.0, scrollNorm))
         ) {
             @Override
             protected void updateMessage() {
                 float val = 0.2f + (float) this.value * (1.2f - 0.2f);
-                this.setMessage(Component.literal(String.format("Velocidad Scroll: %.2fx", val)));
+                this.setMessage(Component.literal(String.format(java.util.Locale.ROOT, "Velocidad Scroll: %.2fx", val)));
             }
 
             @Override
@@ -96,7 +98,7 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // 5. Slider: Posición de Línea de Impacto (Hit Position: 30px a 160px desde abajo)
+        // 5. Slider: Posición de Línea de Impacto (Hit Position: 30px a 160px)
         double hitPosNorm = (settings.hitPositionOffsetBottom - 30.0) / (160.0 - 30.0);
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
@@ -115,7 +117,7 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // 6. Slider: Oscurecimiento de Fondo / Background Dim (0% a 100%)
+        // 6. Slider: Oscurecimiento de Fondo (Background Dim: 0% a 100%)
         this.addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
                 Component.literal("Fondo Oscuro (Dim): " + Math.round(settings.backgroundDim * 100) + "%"),
@@ -159,20 +161,37 @@ public class VSRSettingsScreen extends Screen {
         ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
         this.addRenderableWidget(laneGlowToggle);
 
-        // 9. Teclas 4K (4 botones contiguos de 56px cada uno)
-        int keyY = startY + (row++ * spacing) + 4;
-        int totalKeyWidth = 4 * 56 + 3 * 5;
+        // 9. Selector de Modo de Teclas (Toggle 4K / 7K)
+        this.keyModeToggleButton = Button.builder(
+                getKeyModeToggleText(),
+                btn -> {
+                    this.editingKeyMode = (this.editingKeyMode == 4) ? 7 : 4;
+                    this.listeningLane = -1;
+                    this.clearWidgets();
+                    this.init();
+                }
+        ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
+        this.addRenderableWidget(this.keyModeToggleButton);
+
+        // 10. Botones de Teclas según el modo (4K o 7K)
+        int keyY = startY + (row++ * spacing) + 2;
+        int count = this.editingKeyMode;
+        int keyBtnW = (count == 4) ? 56 : 38;
+        int keyGap = (count == 4) ? 6 : 4;
+        int totalKeyWidth = count * keyBtnW + (count - 1) * keyGap;
         int keyStartX = centerX - totalKeyWidth / 2;
 
-        for (int i = 0; i < 4; i++) {
+        int[] currentKeys = (count == 4) ? settings.keybinds4K : settings.keybinds7K;
+
+        for (int i = 0; i < count; i++) {
             final int laneIdx = i;
             Button keyBtn = Button.builder(
-                    getKeyButtonText(laneIdx, settings.keybinds4K[laneIdx]),
+                    getKeyButtonText(laneIdx, currentKeys[laneIdx]),
                     btn -> {
                         this.listeningLane = laneIdx;
                         updateKeyButtonLabels();
                     }
-            ).bounds(keyStartX + i * (56 + 5), keyY, 56, 20).build();
+            ).bounds(keyStartX + i * (keyBtnW + keyGap), keyY, keyBtnW, 20).build();
             this.keybindButtons[i] = keyBtn;
             this.addRenderableWidget(keyBtn);
         }
@@ -181,17 +200,22 @@ public class VSRSettingsScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                 Component.literal("Listo / Guardar"),
                 btn -> this.onClose()
-        ).bounds(centerX - buttonWidth / 2, this.height - 28, buttonWidth, 20).build());
+        ).bounds(centerX - buttonWidth / 2, this.height - 26, buttonWidth, 20).build());
+    }
+
+    private Component getKeyModeToggleText() {
+        return Component.literal("Configurar Teclas: " + (this.editingKeyMode == 4 ? "§b[ 4K ]" : "§e[ 7K ]") + " §7(Clic para cambiar)");
     }
 
     private void updateKeyButtonLabels() {
         VSRCraftSettings settings = VSRCraftSettings.get();
-        for (int i = 0; i < 4; i++) {
+        int[] keys = (this.editingKeyMode == 4) ? settings.keybinds4K : settings.keybinds7K;
+        for (int i = 0; i < this.editingKeyMode; i++) {
             if (this.keybindButtons[i] != null) {
                 if (this.listeningLane == i) {
-                    this.keybindButtons[i].setMessage(Component.literal("§e[ ... ]"));
+                    this.keybindButtons[i].setMessage(Component.literal("§e[...]"));
                 } else {
-                    this.keybindButtons[i].setMessage(getKeyButtonText(i, settings.keybinds4K[i]));
+                    this.keybindButtons[i].setMessage(getKeyButtonText(i, keys[i]));
                 }
             }
         }
@@ -199,15 +223,20 @@ public class VSRSettingsScreen extends Screen {
 
     private static Component getKeyButtonText(int lane, int keyCode) {
         String keyName = getKeyDisplayName(keyCode);
-        return Component.literal("C" + (lane + 1) + ": " + keyName);
+        return Component.literal("C" + (lane + 1) + ":" + keyName);
     }
 
     private static String getKeyDisplayName(int keyCode) {
+        if (keyCode == GLFW.GLFW_KEY_SPACE) return "SPC";
         try {
             InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(keyCode);
-            return key.getDisplayName().getString().toUpperCase();
+            String name = key.getDisplayName().getString().toUpperCase();
+            if (name.length() > 4) {
+                name = name.substring(0, 4);
+            }
+            return name;
         } catch (Exception e) {
-            return "KEY " + keyCode;
+            return "K" + keyCode;
         }
     }
 
@@ -224,7 +253,11 @@ public class VSRSettingsScreen extends Screen {
         if (this.listeningLane >= 0) {
             int newKey = event.key();
             if (newKey != GLFW.GLFW_KEY_ESCAPE) {
-                VSRCraftSettings.get().keybinds4K[this.listeningLane] = newKey;
+                if (this.editingKeyMode == 4) {
+                    VSRCraftSettings.get().keybinds4K[this.listeningLane] = newKey;
+                } else {
+                    VSRCraftSettings.get().keybinds7K[this.listeningLane] = newKey;
+                }
                 VSRCraftSettings.save();
             }
             this.listeningLane = -1;
@@ -237,11 +270,10 @@ public class VSRSettingsScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fillGradient(0, 0, this.width, this.height, 0xD0101010, 0xE0101010);
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+        graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
-        // Subtítulo indicador para teclas
         if (this.listeningLane >= 0) {
-            graphics.drawCenteredString(this.font, "§ePresiona cualquier tecla para Carril " + (this.listeningLane + 1) + " (ESC para cancelar)", this.width / 2, this.height - 44, 0xFFFF55);
+            graphics.drawCenteredString(this.font, "§ePresiona cualquier tecla para Carril " + (this.listeningLane + 1) + " (ESC para cancelar)", this.width / 2, this.height - 42, 0xFFFF55);
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);

@@ -26,9 +26,11 @@ public class KeybindConfig {
         if (keyCount == 4) {
             return VSRCraftSettings.get().keybinds4K;
         }
+        if (keyCount == 7) {
+            return VSRCraftSettings.get().keybinds7K;
+        }
         return switch (keyCount) {
             case 6 -> DEFAULT_6K;
-            case 7 -> DEFAULT_7K;
             default -> VSRCraftSettings.get().keybinds4K;
         };
     }

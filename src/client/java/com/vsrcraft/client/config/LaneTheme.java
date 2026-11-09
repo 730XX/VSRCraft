@@ -5,6 +5,13 @@ public class LaneTheme {
         if (totalLanes == 4) {
             return (lane == 0 || lane == 3) ? 0xFF3399FF : 0xFFFFFFFF;
         }
+        if (totalLanes == 7) {
+            if (lane == 3) {
+                return 0xFFFFCC00; // Carril central de 7K en amarillo oro brillante
+            }
+            // Patrón estándar Beatmania/BMS: Blanco, Azul, Blanco, [Amarillo], Blanco, Azul, Blanco
+            return (lane == 1 || lane == 5) ? 0xFF3399FF : 0xFFFFFFFF;
+        }
         // Colores por defecto para otros modos
         return (lane % 2 == 0) ? 0xFF3399FF : 0xFFFFFFFF;
     }

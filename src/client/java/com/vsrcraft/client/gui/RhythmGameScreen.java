@@ -17,10 +17,12 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
+import java.util.Locale;
 
 public class RhythmGameScreen extends Screen {
     private final int keyCount;
@@ -36,6 +38,14 @@ public class RhythmGameScreen extends Screen {
     private boolean musicStarted = false;
     private boolean isPaused = false;
     private long pausedNanoTime = 0L;
+
+    // Barra de Vida / HP
+    private float smoothHp = 100.0f;
+    private boolean failTriggered = false;
+
+    // Botones interactivos en pantalla de fallo
+    private Button retryButton;
+    private Button exitButton;
 
     public RhythmGameScreen() {
         this(getDefaultBeatmap());
@@ -62,21 +72,17 @@ public class RhythmGameScreen extends Screen {
     protected void init() {
         super.init();
 
-        // Actualizar teclas por si fueron reasignadas en la pantalla de opciones
+        // Actualizar teclas por si fueron reasignadas
         this.laneKeys = KeybindConfig.getKeysForMode(keyCount);
 
         if (!this.sessionInitialized) {
-            this.sessionInitialized = true;
-            this.startNanoTime = System.nanoTime();
-            this.musicStarted = false;
-            this.engine.start(0);
-            AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
+            startSession();
         } else if (this.isPaused) {
             // Reanudando desde la pantalla de ajustes
             this.isPaused = false;
             long pausedDuration = System.nanoTime() - this.pausedNanoTime;
             this.startNanoTime += pausedDuration;
-            if (this.musicStarted) {
+            if (this.musicStarted && !engine.isFailed()) {
                 AudioManager.resumeMusic();
             }
         }
@@ -95,9 +101,42 @@ public class RhythmGameScreen extends Screen {
         .build();
 
         this.addRenderableWidget(settingsButton);
+
+        // Botones para la pantalla de Fallo (inician ocultos/inactivos)
+        int btnW = 120;
+        int btnH = 22;
+        int centerY = this.height / 2 + 38;
+
+        this.retryButton = Button.builder(Component.literal("§a↻ Reintentar (R)"), btn -> restartSession())
+                .bounds(this.width / 2 - btnW - 6, centerY, btnW, btnH).build();
+        this.exitButton = Button.builder(Component.literal("§c< Salir (ESC)"), btn -> this.onClose())
+                .bounds(this.width / 2 + 6, centerY, btnW, btnH).build();
+
+        this.retryButton.visible = false;
+        this.exitButton.visible = false;
+        this.addRenderableWidget(this.retryButton);
+        this.addRenderableWidget(this.exitButton);
+    }
+
+    private void startSession() {
+        this.sessionInitialized = true;
+        this.startNanoTime = System.nanoTime();
+        this.musicStarted = false;
+        this.smoothHp = 100.0f;
+        this.failTriggered = false;
+        this.engine.start(0);
+        AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
+    }
+
+    private void restartSession() {
+        AudioManager.stopMusic();
+        if (this.retryButton != null) this.retryButton.visible = false;
+        if (this.exitButton != null) this.exitButton.visible = false;
+        startSession();
     }
 
     private void openSettingsScreen() {
+        if (engine.isFailed()) return;
         this.isPaused = true;
         this.pausedNanoTime = System.nanoTime();
         if (this.musicStarted) {
@@ -133,21 +172,21 @@ public class RhythmGameScreen extends Screen {
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        if (!musicStarted && !isPaused) {
+        if (!musicStarted && !isPaused && !engine.isFailed()) {
             AudioManager.ensureMusicReady();
         }
 
         double currentSongTimeMs = getCurrentSongTimeMs();
 
         // Arrancar la música con latencia cero al cruzar el ms 0
-        if (!musicStarted && !isPaused && currentSongTimeMs >= 0.0) {
+        if (!musicStarted && !isPaused && !engine.isFailed() && currentSongTimeMs >= 0.0) {
             AudioManager.startPreloadedMusic();
             musicStarted = true;
             currentSongTimeMs = AudioManager.getMusicTimeMs() + VSRCraftSettings.get().globalAudioOffsetMs;
         }
 
         long currentSongTimeLong = Math.round(currentSongTimeMs);
-        if (!isPaused) {
+        if (!isPaused && !engine.isFailed()) {
             engine.update(currentSongTimeLong);
         }
 
@@ -164,6 +203,9 @@ public class RhythmGameScreen extends Screen {
         // 3. Render de información (Score a la izquierda, Combo y Juicio al medio)
         JudgementHudRenderer.renderHud(guiGraphics, this.font, engine.getScoreTracker(), engine.getLastJudgement(), boardStartX, hitLineY, this.width, this.height);
 
+        // 4. Render de la Barra de Vida Lateral (HP Bar)
+        renderHpBar(guiGraphics, boardStartX + boardWidth + 8, hitLineY);
+
         // Metadata de la canción y estado arriba a la izquierda
         String status = currentSongTimeLong < 0
                 ? "PREPARATE (" + (-currentSongTimeLong / 1000 + 1) + "s)"
@@ -176,10 +218,94 @@ public class RhythmGameScreen extends Screen {
         String help = String.format("ESC: Volver a Canciones | Scroll: %.2fx | Offset: %s | HitPos: %dpx",
                 VSRCraftSettings.get().scrollSpeed, offsetStr, RhythmConfig.getHitLineOffsetBottom());
         guiGraphics.drawString(this.font, help, 12, this.height - 18, 0xFF777777, false);
+
+        // 5. Manejo y Overlay de FALLO (STAGE FAILED)
+        if (engine.isFailed()) {
+            if (!this.failTriggered) {
+                this.failTriggered = true;
+                AudioManager.stopMusic();
+                AudioManager.playHitSound(); // Alerta sonora de rotura
+                if (this.retryButton != null) this.retryButton.visible = true;
+                if (this.exitButton != null) this.exitButton.visible = true;
+            }
+            renderFailedOverlay(guiGraphics);
+        }
+    }
+
+    private void renderHpBar(GuiGraphics g, int barX, int hitLineY) {
+        int barTop = 32;
+        int barH = Math.max(40, hitLineY - barTop);
+        int barW = 8;
+
+        // Interpolación suave del valor de HP
+        this.smoothHp += (this.engine.getHp() - this.smoothHp) * 0.18f;
+        if (Math.abs(this.engine.getHp() - this.smoothHp) < 0.1f) {
+            this.smoothHp = this.engine.getHp();
+        }
+
+        // Fondo y borde de la barra
+        g.fill(barX, barTop, barX + barW, barTop + barH, 0xD00E121A);
+        g.fill(barX, barTop, barX + barW, barTop + 1, 0xFF2A374A);
+        g.fill(barX, barTop + barH - 1, barX + barW, barTop + barH, 0xFF2A374A);
+        g.fill(barX, barTop, barX + 1, barTop + barH, 0xFF2A374A);
+        g.fill(barX + barW - 1, barTop, barX + barW, barTop + barH, 0xFF2A374A);
+
+        // Relleno de vida (de abajo hacia arriba)
+        int fillH = Math.max(0, Math.min(barH - 2, Math.round(((this.smoothHp / 100.0f) * (barH - 2)))));
+        int fillY = barTop + barH - 1 - fillH;
+
+        int hpColor;
+        if (this.smoothHp > 50.0f) {
+            hpColor = 0xFF00E5FF; // Cian brillante
+        } else if (this.smoothHp > 20.0f) {
+            hpColor = 0xFFFFCA28; // Amarillo/Oro
+        } else {
+            // Parpadeo de peligro si la vida es muy baja
+            boolean blink = (System.currentTimeMillis() / 150) % 2 == 0;
+            hpColor = blink ? 0xFFFF1744 : 0xFFB71C1C;
+        }
+
+        if (fillH > 0) {
+            g.fill(barX + 1, fillY, barX + barW - 1, barTop + barH - 1, hpColor);
+            // Destello superior en el tope de la barra de vida
+            g.fill(barX + 1, fillY, barX + barW - 1, fillY + 1, 0xFFFFFFFF);
+        }
+
+        // Etiqueta "HP" arriba de la barra
+        g.drawString(this.font, "HP", barX, barTop - 10, hpColor, false);
+    }
+
+    private void renderFailedOverlay(GuiGraphics g) {
+        // Tinte rojo sangre semi-transparente sobre la pantalla
+        g.fill(0, 0, this.width, this.height, 0xD9200508);
+
+        int centerX = this.width / 2;
+        int centerY = this.height / 2 - 20;
+
+        // Letras gigantes de fallo
+        g.drawCenteredString(this.font, "§c§l✖ STAGE FAILED ✖", centerX, centerY - 32, 0xFFFF3333);
+        g.drawCenteredString(this.font, "§7Te has quedado sin vida (HP 0%)", centerX, centerY - 16, 0xFFAAAAAA);
+
+        ScoreTracker tracker = engine.getScoreTracker();
+        String statsLine = String.format(Locale.ROOT, "Score: %07d   |   Acc: %.2f%%   |   Max Combo: %dx",
+                tracker.getScore(), tracker.getAccuracy(), tracker.getMaxCombo());
+        g.drawCenteredString(this.font, statsLine, centerX, centerY + 6, 0xFFE0E0E0);
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (engine.isFailed()) {
+            if (event.key() == GLFW.GLFW_KEY_R) {
+                restartSession();
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+                this.onClose();
+                return true;
+            }
+            return true;
+        }
+
         if (event.key() == GLFW.GLFW_KEY_O) {
             openSettingsScreen();
             return true;
@@ -228,6 +354,8 @@ public class RhythmGameScreen extends Screen {
 
     @Override
     public boolean keyReleased(KeyEvent event) {
+        if (engine.isFailed()) return true;
+
         long currentSongTime = Math.round(getCurrentSongTimeMs());
         for (int lane = 0; lane < keyCount; lane++) {
             if (event.key() == laneKeys[lane]) {
@@ -243,6 +371,7 @@ public class RhythmGameScreen extends Screen {
     }
 
     private void saveSessionRecordIfValid() {
+        if (engine.isFailed()) return; // No registrar récord si el mapa fue fallado
         ScoreTracker tracker = this.engine.getScoreTracker();
         if (tracker.getTotalJudged() > 0 && tracker.getScore() > 0) {
             VSRCraftSettings.get().updatePersonalBest(

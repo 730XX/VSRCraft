@@ -52,12 +52,22 @@ public class VSRCraftSettings {
     public boolean enableLaneGlow = false; // Hit glow al presionar carril
     public float backgroundDim = 0.6f;     // Oscurecimiento de pantalla completa (0.0 = nada, 1.0 = negro total)
 
-    // 4. Teclas / Keybinds (4K por defecto: D, F, J, K)
+    // 4. Teclas / Keybinds (4K por defecto: D, F, J, K | 7K: S, D, F, ESPACIO, J, K, L)
     public int[] keybinds4K = {
             GLFW.GLFW_KEY_D,
             GLFW.GLFW_KEY_F,
             GLFW.GLFW_KEY_J,
             GLFW.GLFW_KEY_K
+    };
+
+    public int[] keybinds7K = {
+            GLFW.GLFW_KEY_S,
+            GLFW.GLFW_KEY_D,
+            GLFW.GLFW_KEY_F,
+            GLFW.GLFW_KEY_SPACE,
+            GLFW.GLFW_KEY_J,
+            GLFW.GLFW_KEY_K,
+            GLFW.GLFW_KEY_L
     };
 
     // 5. Récords personales por Beatmap ID
@@ -102,6 +112,9 @@ public class VSRCraftSettings {
             // Asegurar integridad de campos que puedan ser nulos de versiones previas
             if (instance.keybinds4K == null || instance.keybinds4K.length < 4) {
                 instance.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
+            }
+            if (instance.keybinds7K == null || instance.keybinds7K.length < 7) {
+                instance.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
             }
             if (instance.hitPositionOffsetBottom <= 0) {
                 instance.hitPositionOffsetBottom = 60;
