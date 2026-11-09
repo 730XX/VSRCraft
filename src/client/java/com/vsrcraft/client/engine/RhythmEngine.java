@@ -49,14 +49,15 @@ public class RhythmEngine {
         if (this.isFailed) return;
 
         float hpDrain = beatmap.getHpDrainRate();
-        float drainFactor = Math.max(0.6f, Math.min(2.0f, hpDrain / 5.0f));
+        // Factor de drenaje suavizado para que sea justo y permita recuperarse
+        float drainFactor = Math.max(0.4f, Math.min(1.3f, hpDrain / 8.0f));
 
         switch (judgement) {
-            case MARVELOUS -> this.hp = Math.min(100.0f, this.hp + 3.0f);
-            case PERFECT -> this.hp = Math.min(100.0f, this.hp + 2.0f);
+            case MARVELOUS -> this.hp = Math.min(100.0f, this.hp + 2.2f);
+            case PERFECT -> this.hp = Math.min(100.0f, this.hp + 1.6f);
             case GREAT -> this.hp = Math.min(100.0f, this.hp + 0.8f);
-            case BAD -> this.hp = Math.max(0.0f, this.hp - 4.0f * drainFactor);
-            case MISS -> this.hp = Math.max(0.0f, this.hp - 8.5f * drainFactor);
+            case BAD -> this.hp = Math.max(0.0f, this.hp - 1.2f * drainFactor);
+            case MISS -> this.hp = Math.max(0.0f, this.hp - 3.8f * drainFactor);
         }
 
         if (this.hp <= 0.0f) {
