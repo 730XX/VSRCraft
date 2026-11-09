@@ -9,15 +9,17 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
- * Catálogo centralizado de Beatmaps de VSRCraft.
- * Carga tanto los beatmaps integrados en los recursos del mod como cualquier
- * beatmap externo (.osu + .ogg) colocado en la carpeta "vsrg_beatmaps" de Minecraft.
+ * Catálogo centralizado de Beatmaps y Canciones (BeatmapSets) de VSRCraft.
+ * Agrupa automáticamente las dificultades por canción/set para un selector limpio.
  */
 public class BeatmapRepository {
+    private static final List<BeatmapSet> cachedSets = new ArrayList<>();
     private static final List<Beatmap> cachedBeatmaps = new ArrayList<>();
     private static boolean initialized = false;
 
@@ -28,6 +30,13 @@ public class BeatmapRepository {
             new BundledBeatmapEntry("/assets/vsrcraft/beatmaps/elpis.osu", "/assets/vsrcraft/sounds/music/elpis.ogg")
     };
 
+    public static synchronized List<BeatmapSet> getBeatmapSets() {
+        if (!initialized) {
+            reload();
+        }
+        return new ArrayList<>(cachedSets);
+    }
+
     public static synchronized List<Beatmap> getBeatmaps() {
         if (!initialized) {
             reload();
@@ -35,9 +44,24 @@ public class BeatmapRepository {
         return new ArrayList<>(cachedBeatmaps);
     }
 
+    public static synchronized BeatmapSet findSetForBeatmap(Beatmap beatmap) {
+        if (beatmap == null) return null;
+        for (BeatmapSet set : getBeatmapSets()) {
+            for (Beatmap diff : set.getDifficulties()) {
+                if (diff.getId().equals(beatmap.getId())) {
+                    return set;
+                }
+            }
+        }
+        return null;
+    }
+
     public static synchronized void reload() {
+        cachedSets.clear();
         cachedBeatmaps.clear();
         initialized = true;
+
+        Map<String, BeatmapSet> setMap = new LinkedHashMap<>();
 
         // 1. Cargar beatmaps integrados del mod
         for (BundledBeatmapEntry entry : BUNDLED_BEATMAPS) {
@@ -45,7 +69,7 @@ public class BeatmapRepository {
                 if (stream != null) {
                     Beatmap map = OsuBeatmapParser.parse(stream, entry.audioResourcePath());
                     if (!map.getNotes().isEmpty()) {
-                        cachedBeatmaps.add(map);
+                        registerBeatmap(map, setMap);
                     }
                 }
             } catch (Exception e) {
@@ -53,38 +77,59 @@ public class BeatmapRepository {
             }
         }
 
-        // 2. Escanear carpeta externa .minecraft/vsrg_beatmaps/ para soporte de canciones personalizadas
+        // 2. Escanear carpeta externa .minecraft/vsrg_beatmaps/ para canciones personalizadas
         File externalDir = getExternalBeatmapsDir();
         if (!externalDir.exists()) {
             externalDir.mkdirs();
         }
-        scanDirectoryRecursively(externalDir, 0);
+        scanDirectoryRecursively(externalDir, 0, setMap);
 
-        // Ordenar alfabéticamente por título y luego por dificultad estimada
-        cachedBeatmaps.sort(
-                Comparator.comparing((Beatmap b) -> b.getTitle().toLowerCase(Locale.ROOT))
-                        .thenComparingDouble(Beatmap::getEstimatedStarRating)
-        );
+        // 3. Consolidar y ordenar canciones y dificultades
+        cachedSets.addAll(setMap.values());
+        cachedSets.sort(Comparator.comparing((BeatmapSet s) -> s.getTitle().toLowerCase(Locale.ROOT)));
+
+        for (BeatmapSet set : cachedSets) {
+            cachedBeatmaps.addAll(set.getDifficulties());
+        }
     }
 
-    private static void scanDirectoryRecursively(File dir, int depth) {
+    private static void registerBeatmap(Beatmap map, Map<String, BeatmapSet> setMap) {
+        String rawSetId = map.getBeatmapSetId();
+        final String setId = (rawSetId != null && !rawSetId.isEmpty() && !rawSetId.equals("0"))
+                ? rawSetId
+                : (map.getArtist() + "_" + map.getTitle()).replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase(Locale.ROOT);
+
+        BeatmapSet set = setMap.computeIfAbsent(setId, k -> new BeatmapSet(
+                k,
+                map.getTitle(),
+                map.getArtist(),
+                map.getCreator(),
+                map.getSource()
+        ));
+        set.addDifficulty(map);
+    }
+
+    private static void scanDirectoryRecursively(File dir, int depth, Map<String, BeatmapSet> setMap) {
         if (dir == null || !dir.isDirectory() || depth > 2) return;
         File[] files = dir.listFiles();
         if (files == null) return;
 
         for (File file : files) {
             if (file.isDirectory()) {
-                scanDirectoryRecursively(file, depth + 1);
+                scanDirectoryRecursively(file, depth + 1, setMap);
             } else if (file.getName().toLowerCase(Locale.ROOT).endsWith(".osu")) {
-                loadExternalOsuFile(file);
+                loadExternalOsuFile(file, setMap);
             }
         }
     }
 
-    private static void loadExternalOsuFile(File osuFile) {
+    private static void loadExternalOsuFile(File osuFile, Map<String, BeatmapSet> setMap) {
         try (InputStream stream = new FileInputStream(osuFile)) {
             Beatmap map = OsuBeatmapParser.parse(stream, "");
-            if (map.getNotes().isEmpty()) return;
+            // Aceptar exclusivamente mapas de Mania (Mode: 3)
+            if (map.getNotes().isEmpty() || map.getGameMode() != 3) {
+                return;
+            }
 
             File parentDir = osuFile.getParentFile();
             String audioFileName = map.getAudioFilename();
@@ -97,7 +142,7 @@ public class BeatmapRepository {
                 }
             }
 
-            // Si el nombre en AudioFilename no coincide o es MP3 pero hay un .ogg en la carpeta, buscar el primer .ogg
+            // Si el nombre no coincide exactamente pero hay un .ogg en la carpeta, usar el primer .ogg
             if (audioFile == null && parentDir != null) {
                 File[] siblings = parentDir.listFiles((d, name) -> name.toLowerCase(Locale.ROOT).endsWith(".ogg"));
                 if (siblings != null && siblings.length > 0) {
@@ -107,7 +152,7 @@ public class BeatmapRepository {
 
             if (audioFile != null && audioFile.exists()) {
                 map.setAudioResourcePath("file:" + audioFile.getAbsolutePath());
-                cachedBeatmaps.add(map);
+                registerBeatmap(map, setMap);
             }
         } catch (Exception e) {
             System.err.println("[VSRCraft] Error leyendo beatmap externo " + osuFile.getName() + ": " + e.getMessage());

@@ -22,6 +22,7 @@ public class OsuBeatmapParser {
 
         String currentSection = "";
         String beatmapId = "";
+        String beatmapSetId = "";
         String title = "Unknown Title";
         String artist = "Unknown Artist";
         String creator = "Unknown Mapper";
@@ -31,6 +32,7 @@ public class OsuBeatmapParser {
         String audioFilename = "";
         long audioLeadInMs = 0L;
         long previewTimeMs = 0L;
+        int gameMode = 0; // 0 = standard, 1 = taiko, 2 = catch, 3 = mania
         int circleSize = 4; // Teclas por defecto (4K)
         float overallDifficulty = 7.0f;
         float hpDrainRate = 7.0f;
@@ -59,6 +61,10 @@ public class OsuBeatmapParser {
                         try {
                             previewTimeMs = Math.max(0L, Long.parseLong(line.substring("PreviewTime:".length()).trim()));
                         } catch (NumberFormatException ignored) {}
+                    } else if (line.startsWith("Mode:")) {
+                        try {
+                            gameMode = Integer.parseInt(line.substring("Mode:".length()).trim());
+                        } catch (NumberFormatException ignored) {}
                     }
                 }
                 case "Metadata" -> {
@@ -76,6 +82,8 @@ public class OsuBeatmapParser {
                         tags = line.substring("Tags:".length()).trim();
                     } else if (line.startsWith("BeatmapID:")) {
                         beatmapId = line.substring("BeatmapID:".length()).trim();
+                    } else if (line.startsWith("BeatmapSetID:")) {
+                        beatmapSetId = line.substring("BeatmapSetID:".length()).trim();
                     }
                 }
                 case "Difficulty" -> {
@@ -119,12 +127,14 @@ public class OsuBeatmapParser {
 
         Beatmap beatmap = new Beatmap(
                 beatmapId,
+                beatmapSetId,
                 title,
                 artist,
                 creator,
                 version,
                 source,
                 tags,
+                gameMode,
                 circleSize,
                 overallDifficulty,
                 hpDrainRate,
@@ -144,7 +154,6 @@ public class OsuBeatmapParser {
     }
 
     private static void parseHitObject(String line, Beatmap beatmap, int keyCount) {
-        // Formato: x,y,time,type,hitSound,[endTime:]hitSample
         String[] parts = line.split(",");
         if (parts.length < 4) return;
 

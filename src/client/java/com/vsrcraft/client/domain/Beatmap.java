@@ -7,12 +7,14 @@ import java.util.Locale;
 
 public class Beatmap {
     private final String id;
+    private final String beatmapSetId;
     private final String title;
     private final String artist;
     private final String creator;
     private final String version;
     private final String source;
     private final String tags;
+    private final int gameMode; // 3 = osu!mania
     private final int keyCount;
     private final float overallDifficulty;
     private final float hpDrainRate;
@@ -29,21 +31,23 @@ public class Beatmap {
     private long durationMs = -1L;
 
     public Beatmap(String title, String artist, int keyCount) {
-        this(title + "_" + artist, title, artist, "Unknown", "Normal", "", "", keyCount, 5.0f, 5.0f, 120, "", "", 0L, 0L);
+        this(title + "_" + artist, title + "_" + artist, title, artist, "Unknown", "Normal", "", "", 3, keyCount, 5.0f, 5.0f, 120, "", "", 0L, 0L);
     }
 
     public Beatmap(String title, String artist, int keyCount, String audioFilename, long audioLeadInMs) {
-        this(title + "_" + artist, title, artist, "Unknown", "Normal", "", "", keyCount, 5.0f, 5.0f, 120, audioFilename, "", audioLeadInMs, 0L);
+        this(title + "_" + artist, title + "_" + artist, title, artist, "Unknown", "Normal", "", "", 3, keyCount, 5.0f, 5.0f, 120, audioFilename, "", audioLeadInMs, 0L);
     }
 
     public Beatmap(
             String id,
+            String beatmapSetId,
             String title,
             String artist,
             String creator,
             String version,
             String source,
             String tags,
+            int gameMode,
             int keyCount,
             float overallDifficulty,
             float hpDrainRate,
@@ -54,12 +58,16 @@ public class Beatmap {
             long previewTimeMs
     ) {
         this.id = id;
+        this.beatmapSetId = (beatmapSetId != null && !beatmapSetId.isEmpty() && !beatmapSetId.equals("0"))
+                ? beatmapSetId
+                : (artist + "_" + title).replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase(Locale.ROOT);
         this.title = title;
         this.artist = artist;
         this.creator = creator;
         this.version = version;
         this.source = source;
         this.tags = tags;
+        this.gameMode = gameMode;
         this.keyCount = keyCount;
         this.overallDifficulty = overallDifficulty;
         this.hpDrainRate = hpDrainRate;
@@ -147,12 +155,14 @@ public class Beatmap {
     }
 
     public String getId() { return id; }
+    public String getBeatmapSetId() { return beatmapSetId; }
     public String getTitle() { return title; }
     public String getArtist() { return artist; }
     public String getCreator() { return creator; }
     public String getVersion() { return version; }
     public String getSource() { return source; }
     public String getTags() { return tags; }
+    public int getGameMode() { return gameMode; }
     public int getKeyCount() { return keyCount; }
     public float getOverallDifficulty() { return overallDifficulty; }
     public float getHpDrainRate() { return hpDrainRate; }
