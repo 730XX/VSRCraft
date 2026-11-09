@@ -2,25 +2,89 @@ package com.vsrcraft.client.gui;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.vsrcraft.client.audio.AudioManager;
+import com.vsrcraft.client.config.KeybindConfig;
+import com.vsrcraft.client.config.LaneTheme;
+import com.vsrcraft.client.config.RhythmConfig;
 import com.vsrcraft.client.config.VSRCraftSettings;
+import com.vsrcraft.client.domain.Note;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Pantalla de Configuración y Personalización de VSRCraft:
+ * - Organización limpia en 4 Pestañas: 🎧 Audio, 🎮 Gameplay, 🎨 Visual, ⌨ Teclas.
+ * - Live Preview en tiempo real en la columna derecha que reacciona a los sliders y pulsaciones de teclas.
+ */
 public class VSRSettingsScreen extends Screen {
+
+    public enum Tab {
+        AUDIO("🎧 Audio"),
+        GAMEPLAY("🎮 Gameplay"),
+        VISUAL("🎨 Visual"),
+        KEYBINDS("⌨ Teclas");
+
+        final String label;
+        Tab(String label) { this.label = label; }
+    }
+
     private final Screen parentScreen;
+    private Tab currentTab = Tab.AUDIO;
+
+    // Estado de reasignación de teclas
     private int listeningLane = -1;
     private int editingKeyMode = 4; // 4K o 7K
-    private Button[] keybindButtons = new Button[7];
-    private Button keyModeToggleButton;
+
+    // Estado del Previsualizador en Vivo (Live Preview)
+    private final boolean[] previewPressed = new boolean[7];
+    private final List<Note> previewNotes4K = new ArrayList<>();
+    private final List<Note> previewNotes7K = new ArrayList<>();
+    private long previewLoopStart = 0L;
+    private static final long LOOP_DURATION_MS = 2800L;
+
+    // Layout
+    private int leftPanelX, leftPanelY, leftPanelW, leftPanelH;
+    private int rightPanelX, rightPanelY, rightPanelW, rightPanelH;
 
     public VSRSettingsScreen(Screen parentScreen) {
         super(Component.literal("Configuración de VSRCraft"));
         this.parentScreen = parentScreen;
+        initPreviewNotes();
+    }
+
+    private void initPreviewNotes() {
+        this.previewLoopStart = System.currentTimeMillis();
+
+        // Notas de demostración para 4K en bucle continuo
+        this.previewNotes4K.clear();
+        this.previewNotes4K.add(new Note(0, 300));
+        this.previewNotes4K.add(new Note(1, 600));
+        this.previewNotes4K.add(new Note(2, 900));
+        this.previewNotes4K.add(new Note(3, 1200));
+        this.previewNotes4K.add(new Note(1, 1500, 700, Note.Type.HOLD));
+        this.previewNotes4K.add(new Note(2, 1700));
+        this.previewNotes4K.add(new Note(0, 2400));
+        this.previewNotes4K.add(new Note(3, 2400));
+
+        // Notas de demostración para 7K
+        this.previewNotes7K.clear();
+        this.previewNotes7K.add(new Note(0, 300));
+        this.previewNotes7K.add(new Note(2, 600));
+        this.previewNotes7K.add(new Note(3, 900, 600, Note.Type.HOLD)); // Centro amarillo
+        this.previewNotes7K.add(new Note(4, 1200));
+        this.previewNotes7K.add(new Note(6, 1500));
+        this.previewNotes7K.add(new Note(1, 1800));
+        this.previewNotes7K.add(new Note(5, 2100));
+        this.previewNotes7K.add(new Note(3, 2500));
     }
 
     @Override
@@ -28,15 +92,82 @@ public class VSRSettingsScreen extends Screen {
         super.init();
         VSRCraftSettings settings = VSRCraftSettings.get();
 
-        int centerX = this.width / 2;
-        int startY = 24;
-        int buttonWidth = 240;
-        int spacing = 21;
+        int margin = 10;
+        int topBarH = 28;
+        int bottomBarH = 22;
+        int contentY = topBarH + 6;
+        int contentH = this.height - contentY - bottomBarH - 4;
+
+        // Distribución 2 Columnas: Izquierda (Ajustes con Pestañas) ~56%, Derecha (Live Preview) ~44%
+        this.leftPanelX = margin;
+        this.leftPanelY = contentY;
+        this.leftPanelW = Math.max(220, (int) ((this.width - margin * 3) * 0.56f));
+        this.leftPanelH = contentH;
+
+        this.rightPanelX = this.leftPanelX + this.leftPanelW + margin;
+        this.rightPanelY = contentY;
+        this.rightPanelW = this.width - this.rightPanelX - margin;
+        this.rightPanelH = contentH;
+
+        // 1. Botón [< Guardar y Salir]
+        this.addRenderableWidget(Button.builder(
+                Component.literal("< Guardar y Salir"),
+                btn -> this.onClose()
+        ).bounds(margin, 4, 110, 20).build());
+
+        // 2. Botón [↺ Restablecer Valores] arriba a la derecha
+        this.addRenderableWidget(Button.builder(
+                Component.literal("↺ Restablecer"),
+                btn -> resetToDefaults()
+        )
+        .bounds(this.width - margin - 86, 4, 86, 20)
+        .tooltip(Tooltip.create(Component.literal("Restablece todas las opciones a los valores por defecto")))
+        .build());
+
+        // 3. Barra de Pestañas (Tabs) sobre la columna izquierda
+        Tab[] tabs = Tab.values();
+        int tabGap = 3;
+        int tabW = (this.leftPanelW - (tabs.length - 1) * tabGap) / tabs.length;
+        int tabH = 20;
+
+        for (int i = 0; i < tabs.length; i++) {
+            final Tab tab = tabs[i];
+            int tabX = this.leftPanelX + i * (tabW + tabGap);
+            boolean isSelected = (this.currentTab == tab);
+
+            Button tabBtn = Button.builder(
+                    Component.literal(isSelected ? "§b§l" + tab.label : "§7" + tab.label),
+                    btn -> {
+                        this.currentTab = tab;
+                        this.listeningLane = -1;
+                        this.clearWidgets();
+                        this.init();
+                    }
+            ).bounds(tabX, this.leftPanelY, tabW, tabH).build();
+            this.addRenderableWidget(tabBtn);
+        }
+
+        // 4. Controles según la pestaña activa
+        int controlsStartY = this.leftPanelY + tabH + 8;
+        int controlInnerW = this.leftPanelW - 16;
+        int controlInnerX = this.leftPanelX + 8;
+        int spacing = 26;
         int row = 0;
 
-        // 1. Slider: Volumen de Música (0% - 100%)
+        switch (this.currentTab) {
+            case AUDIO -> initAudioTabControls(controlInnerX, controlsStartY, controlInnerW, spacing, settings);
+            case GAMEPLAY -> initGameplayTabControls(controlInnerX, controlsStartY, controlInnerW, spacing, settings);
+            case VISUAL -> initVisualTabControls(controlInnerX, controlsStartY, controlInnerW, spacing, settings);
+            case KEYBINDS -> initKeybindsTabControls(controlInnerX, controlsStartY, controlInnerW, spacing, settings);
+        }
+    }
+
+    private void initAudioTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
+        int row = 0;
+
+        // Slider: Volumen Música
         this.addRenderableWidget(new AbstractSliderButton(
-                centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
+                x, startY + (row++ * spacing), w, 20,
                 Component.literal("Volumen Música: " + Math.round(settings.musicVolume * 100) + "%"),
                 settings.musicVolume
         ) {
@@ -44,7 +175,6 @@ public class VSRSettingsScreen extends Screen {
             protected void updateMessage() {
                 this.setMessage(Component.literal("Volumen Música: " + Math.round(this.value * 100) + "%"));
             }
-
             @Override
             protected void applyValue() {
                 settings.musicVolume = (float) this.value;
@@ -52,56 +182,96 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // 2. Slider: Volumen de Hitsounds (0% - 100%)
+        // Slider: Volumen HitSounds
         this.addRenderableWidget(new AbstractSliderButton(
-                centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
-                Component.literal("Volumen Hitsounds: " + Math.round(settings.hitSoundVolume * 100) + "%"),
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal("Volumen HitSounds: " + Math.round(settings.hitSoundVolume * 100) + "%"),
                 settings.hitSoundVolume
         ) {
             @Override
             protected void updateMessage() {
-                this.setMessage(Component.literal("Volumen Hitsounds: " + Math.round(this.value * 100) + "%"));
+                this.setMessage(Component.literal("Volumen HitSounds: " + Math.round(this.value * 100) + "%"));
             }
-
             @Override
             protected void applyValue() {
                 settings.hitSoundVolume = (float) this.value;
             }
         });
 
-        // 3. Botón: Activar / Desactivar Hitsounds
-        Button hitSoundToggle = Button.builder(
+        // Fila doble: Toggle HitSounds + Botón Probar Sonido
+        int halfW = (w - 6) / 2;
+        int toggleY = startY + (row++ * spacing);
+
+        Button toggleBtn = Button.builder(
                 getHitSoundToggleText(settings.enableHitSounds),
                 btn -> {
                     settings.enableHitSounds = !settings.enableHitSounds;
                     btn.setMessage(getHitSoundToggleText(settings.enableHitSounds));
                 }
-        ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
-        this.addRenderableWidget(hitSoundToggle);
+        ).bounds(x, toggleY, halfW, 20).build();
+        this.addRenderableWidget(toggleBtn);
 
-        // 4. Slider: Velocidad de Scroll (0.2 a 1.2 px/ms)
+        Button testSoundBtn = Button.builder(
+                Component.literal("🎵 Probar Sonido"),
+                btn -> AudioManager.playHitSound()
+        ).bounds(x + halfW + 6, toggleY, halfW, 20).build();
+        this.addRenderableWidget(testSoundBtn);
+
+        // Control Fino de Offset Global
+        int offsetRowY = startY + (row++ * spacing) + 4;
+        int btnStepW = 42;
+        int centerOffsetW = w - (btnStepW * 2) - 8;
+
+        Button decOffset = Button.builder(Component.literal("-5ms"), btn -> {
+            settings.globalAudioOffsetMs -= 5L;
+            this.clearWidgets();
+            this.init();
+        }).bounds(x, offsetRowY, btnStepW, 20).build();
+        this.addRenderableWidget(decOffset);
+
+        String offsetText = String.format(Locale.ROOT, "Offset Global: %+d ms", settings.globalAudioOffsetMs);
+        Button resetOffset = Button.builder(Component.literal(offsetText), btn -> {
+            settings.globalAudioOffsetMs = 0L;
+            this.clearWidgets();
+            this.init();
+        }).bounds(x + btnStepW + 4, offsetRowY, centerOffsetW, 20)
+          .tooltip(Tooltip.create(Component.literal("Clic para resetear a 0ms")))
+          .build();
+        this.addRenderableWidget(resetOffset);
+
+        Button incOffset = Button.builder(Component.literal("+5ms"), btn -> {
+            settings.globalAudioOffsetMs += 5L;
+            this.clearWidgets();
+            this.init();
+        }).bounds(x + w - btnStepW, offsetRowY, btnStepW, 20).build();
+        this.addRenderableWidget(incOffset);
+    }
+
+    private void initGameplayTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
+        int row = 0;
+
+        // Slider: Velocidad de Scroll (0.2x a 1.2x)
         double scrollNorm = (settings.scrollSpeed - 0.2) / (1.2 - 0.2);
         this.addRenderableWidget(new AbstractSliderButton(
-                centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
-                Component.literal(String.format(java.util.Locale.ROOT, "Velocidad Scroll: %.2fx", settings.scrollSpeed)),
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal(String.format(Locale.ROOT, "Velocidad Scroll: %.2fx", settings.scrollSpeed)),
                 Math.max(0.0, Math.min(1.0, scrollNorm))
         ) {
             @Override
             protected void updateMessage() {
                 float val = 0.2f + (float) this.value * (1.2f - 0.2f);
-                this.setMessage(Component.literal(String.format(java.util.Locale.ROOT, "Velocidad Scroll: %.2fx", val)));
+                this.setMessage(Component.literal(String.format(Locale.ROOT, "Velocidad Scroll: %.2fx", val)));
             }
-
             @Override
             protected void applyValue() {
                 settings.scrollSpeed = 0.2f + (float) this.value * (1.2f - 0.2f);
             }
         });
 
-        // 5. Slider: Posición de Línea de Impacto (Hit Position: 30px a 160px)
+        // Slider: Posición de Línea de Impacto (Hit Position: 30px a 160px)
         double hitPosNorm = (settings.hitPositionOffsetBottom - 30.0) / (160.0 - 30.0);
         this.addRenderableWidget(new AbstractSliderButton(
-                centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
+                x, startY + (row++ * spacing), w, 20,
                 Component.literal("Posición HitLine: " + settings.hitPositionOffsetBottom + " px"),
                 Math.max(0.0, Math.min(1.0, hitPosNorm))
         ) {
@@ -110,16 +280,37 @@ public class VSRSettingsScreen extends Screen {
                 int px = 30 + (int) Math.round(this.value * 130.0);
                 this.setMessage(Component.literal("Posición HitLine: " + px + " px"));
             }
-
             @Override
             protected void applyValue() {
                 settings.hitPositionOffsetBottom = 30 + (int) Math.round(this.value * 130.0);
             }
         });
 
-        // 6. Slider: Oscurecimiento de Fondo (Background Dim: 0% a 100%)
+        // Slider: Grosor de Notas (6px a 24px)
+        double noteHNorm = (settings.noteHeight - 6.0) / (24.0 - 6.0);
         this.addRenderableWidget(new AbstractSliderButton(
-                centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal("Grosor de Notas: " + settings.noteHeight + " px"),
+                Math.max(0.0, Math.min(1.0, noteHNorm))
+        ) {
+            @Override
+            protected void updateMessage() {
+                int px = 6 + (int) Math.round(this.value * 18.0);
+                this.setMessage(Component.literal("Grosor de Notas: " + px + " px"));
+            }
+            @Override
+            protected void applyValue() {
+                settings.noteHeight = 6 + (int) Math.round(this.value * 18.0);
+            }
+        });
+    }
+
+    private void initVisualTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
+        int row = 0;
+
+        // Slider: Fondo Oscuro (Background Dim)
+        this.addRenderableWidget(new AbstractSliderButton(
+                x, startY + (row++ * spacing), w, 20,
                 Component.literal("Fondo Oscuro (Dim): " + Math.round(settings.backgroundDim * 100) + "%"),
                 settings.backgroundDim
         ) {
@@ -127,59 +318,61 @@ public class VSRSettingsScreen extends Screen {
             protected void updateMessage() {
                 this.setMessage(Component.literal("Fondo Oscuro (Dim): " + Math.round(this.value * 100) + "%"));
             }
-
             @Override
             protected void applyValue() {
                 settings.backgroundDim = (float) this.value;
             }
         });
 
-        // 7. Slider: Opacidad de Carriles (5% - 100%)
+        // Slider: Opacidad de Pista (Lane Alpha)
         this.addRenderableWidget(new AbstractSliderButton(
-                centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20,
-                Component.literal("Opacidad Pista: " + Math.round(settings.laneAlpha * 100) + "%"),
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal("Opacidad de Pista: " + Math.round(settings.laneAlpha * 100) + "%"),
                 settings.laneAlpha
         ) {
             @Override
             protected void updateMessage() {
-                this.setMessage(Component.literal("Opacidad Pista: " + Math.round(this.value * 100) + "%"));
+                this.setMessage(Component.literal("Opacidad de Pista: " + Math.round(this.value * 100) + "%"));
             }
-
             @Override
             protected void applyValue() {
                 settings.laneAlpha = (float) Math.max(0.05, this.value);
             }
         });
 
-        // 8. Botón: Activar / Desactivar Hit Glow de los Carriles
+        // Toggle: Hit Glow de Carriles
         Button laneGlowToggle = Button.builder(
                 getLaneGlowToggleText(settings.enableLaneGlow),
                 btn -> {
                     settings.enableLaneGlow = !settings.enableLaneGlow;
                     btn.setMessage(getLaneGlowToggleText(settings.enableLaneGlow));
                 }
-        ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
+        ).bounds(x, startY + (row++ * spacing), w, 20).build();
         this.addRenderableWidget(laneGlowToggle);
+    }
 
-        // 9. Selector de Modo de Teclas (Toggle 4K / 7K)
-        this.keyModeToggleButton = Button.builder(
-                getKeyModeToggleText(),
+    private void initKeybindsTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
+        int row = 0;
+
+        // Toggle para alternar entre 4K y 7K
+        Button modeBtn = Button.builder(
+                Component.literal("Modo de Teclas: " + (this.editingKeyMode == 4 ? "§b[ 4K ]" : "§e[ 7K ]") + " §7(Clic para alternar)"),
                 btn -> {
                     this.editingKeyMode = (this.editingKeyMode == 4) ? 7 : 4;
                     this.listeningLane = -1;
                     this.clearWidgets();
                     this.init();
                 }
-        ).bounds(centerX - buttonWidth / 2, startY + (row++ * spacing), buttonWidth, 20).build();
-        this.addRenderableWidget(this.keyModeToggleButton);
+        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        this.addRenderableWidget(modeBtn);
 
-        // 10. Botones de Teclas según el modo (4K o 7K)
-        int keyY = startY + (row++ * spacing) + 2;
+        // Fila de botones de asignación interactiva
+        int keyY = startY + (row++ * spacing) + 4;
         int count = this.editingKeyMode;
-        int keyBtnW = (count == 4) ? 56 : 38;
-        int keyGap = (count == 4) ? 6 : 4;
-        int totalKeyWidth = count * keyBtnW + (count - 1) * keyGap;
-        int keyStartX = centerX - totalKeyWidth / 2;
+        int keyBtnW = (count == 4) ? Math.min(58, (w - 18) / 4) : Math.min(38, (w - 24) / 7);
+        int keyGap = 4;
+        int totalKeyW = count * keyBtnW + (count - 1) * keyGap;
+        int keyStartX = x + (w - totalKeyW) / 2;
 
         int[] currentKeys = (count == 4) ? settings.keybinds4K : settings.keybinds7K;
 
@@ -189,36 +382,32 @@ public class VSRSettingsScreen extends Screen {
                     getKeyButtonText(laneIdx, currentKeys[laneIdx]),
                     btn -> {
                         this.listeningLane = laneIdx;
-                        updateKeyButtonLabels();
+                        this.clearWidgets();
+                        this.init();
                     }
-            ).bounds(keyStartX + i * (keyBtnW + keyGap), keyY, keyBtnW, 20).build();
-            this.keybindButtons[i] = keyBtn;
+            ).bounds(keyStartX + i * (keyBtnW + keyGap), keyY, keyBtnW, 22).build();
             this.addRenderableWidget(keyBtn);
         }
-
-        // Botón Listo / Guardar
-        this.addRenderableWidget(Button.builder(
-                Component.literal("Listo / Guardar"),
-                btn -> this.onClose()
-        ).bounds(centerX - buttonWidth / 2, this.height - 26, buttonWidth, 20).build());
     }
 
-    private Component getKeyModeToggleText() {
-        return Component.literal("Configurar Teclas: " + (this.editingKeyMode == 4 ? "§b[ 4K ]" : "§e[ 7K ]") + " §7(Clic para cambiar)");
-    }
-
-    private void updateKeyButtonLabels() {
-        VSRCraftSettings settings = VSRCraftSettings.get();
-        int[] keys = (this.editingKeyMode == 4) ? settings.keybinds4K : settings.keybinds7K;
-        for (int i = 0; i < this.editingKeyMode; i++) {
-            if (this.keybindButtons[i] != null) {
-                if (this.listeningLane == i) {
-                    this.keybindButtons[i].setMessage(Component.literal("§e[...]"));
-                } else {
-                    this.keybindButtons[i].setMessage(getKeyButtonText(i, keys[i]));
-                }
-            }
-        }
+    private void resetToDefaults() {
+        VSRCraftSettings s = VSRCraftSettings.get();
+        s.musicVolume = 0.5f;
+        s.hitSoundVolume = 0.7f;
+        s.enableHitSounds = true;
+        s.globalAudioOffsetMs = 0L;
+        s.scrollSpeed = 0.5f;
+        s.hitPositionOffsetBottom = 60;
+        s.noteHeight = 12;
+        s.laneAlpha = 0.8f;
+        s.enableLaneGlow = false;
+        s.backgroundDim = 0.6f;
+        s.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
+        s.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
+        VSRCraftSettings.save();
+        AudioManager.updateMusicVolume();
+        this.clearWidgets();
+        this.init();
     }
 
     private static Component getKeyButtonText(int lane, int keyCode) {
@@ -231,9 +420,7 @@ public class VSRSettingsScreen extends Screen {
         try {
             InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(keyCode);
             String name = key.getDisplayName().getString().toUpperCase();
-            if (name.length() > 4) {
-                name = name.substring(0, 4);
-            }
+            if (name.length() > 4) name = name.substring(0, 4);
             return name;
         } catch (Exception e) {
             return "K" + keyCode;
@@ -241,7 +428,7 @@ public class VSRSettingsScreen extends Screen {
     }
 
     private static Component getHitSoundToggleText(boolean enabled) {
-        return Component.literal("Efectos HitSound: " + (enabled ? "§aACTIVADOS" : "§cDESACTIVADOS"));
+        return Component.literal("HitSounds: " + (enabled ? "§aACTIVADOS" : "§cDESACTIVADOS"));
     }
 
     private static Component getLaneGlowToggleText(boolean enabled) {
@@ -261,22 +448,176 @@ public class VSRSettingsScreen extends Screen {
                 VSRCraftSettings.save();
             }
             this.listeningLane = -1;
-            updateKeyButtonLabels();
+            this.clearWidgets();
+            this.init();
             return true;
         }
+
+        // Probar teclas en vivo en el previsualizador
+        int count = this.editingKeyMode;
+        int[] keys = (count == 4) ? VSRCraftSettings.get().keybinds4K : VSRCraftSettings.get().keybinds7K;
+        for (int i = 0; i < count; i++) {
+            if (event.key() == keys[i]) {
+                this.previewPressed[i] = true;
+                AudioManager.playHitSound();
+                return true;
+            }
+        }
+
         return super.keyPressed(event);
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fillGradient(0, 0, this.width, this.height, 0xD0101010, 0xE0101010);
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+    public boolean keyReleased(KeyEvent event) {
+        int count = this.editingKeyMode;
+        int[] keys = (count == 4) ? VSRCraftSettings.get().keybinds4K : VSRCraftSettings.get().keybinds7K;
+        for (int i = 0; i < count; i++) {
+            if (event.key() == keys[i]) {
+                this.previewPressed[i] = false;
+                return true;
+            }
+        }
+        return super.keyReleased(event);
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // Fondo general estilizado
+        g.fillGradient(0, 0, this.width, this.height, 0xE60B0E14, 0xF206080C);
+
+        // Header superior
+        g.fill(0, 0, this.width, 28, 0xCC111622);
+        g.fill(0, 27, this.width, 28, 0xFF00D4FF);
+        g.drawString(this.font, "§b§lVSRCRAFT §8// §fCONFIGURACIÓN Y PERSONALIZACIÓN", 130, 10, 0xFFFFFFFF, true);
+
+        // Contenedor Columna Izquierda (Ajustes)
+        g.fill(leftPanelX, leftPanelY + 23, leftPanelX + leftPanelW, leftPanelY + leftPanelH, 0xD8121722);
+        drawBorder(g, leftPanelX, leftPanelY + 23, leftPanelW, leftPanelH - 23, 0xFF26334D);
+
+        // Contenedor Columna Derecha (Live Preview en Tiempo Real)
+        renderLivePreviewPanel(g);
 
         if (this.listeningLane >= 0) {
-            graphics.drawCenteredString(this.font, "§ePresiona cualquier tecla para Carril " + (this.listeningLane + 1) + " (ESC para cancelar)", this.width / 2, this.height - 42, 0xFFFF55);
+            String hint = "§ePresiona cualquier tecla para Carril " + (this.listeningLane + 1) + " (ESC para cancelar)";
+            g.drawString(this.font, hint, leftPanelX + 10, leftPanelY + leftPanelH - 14, 0xFFFF55, false);
         }
 
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    private void renderLivePreviewPanel(GuiGraphics g) {
+        // Marco del Previsualizador
+        g.fill(rightPanelX, rightPanelY, rightPanelX + rightPanelW, rightPanelY + rightPanelH, 0x900B0E15);
+        drawBorder(g, rightPanelX, rightPanelY, rightPanelW, rightPanelH, 0xFF1E2A3C);
+
+        // Encabezado del Previsualizador
+        g.fill(rightPanelX + 1, rightPanelY + 1, rightPanelX + rightPanelW - 1, rightPanelY + 22, 0xD0131924);
+        g.drawString(this.font, "§b§lPREVISUALIZADOR EN VIVO", rightPanelX + 8, rightPanelY + 7, 0xFF00E5FF, true);
+
+        String modeTag = "[" + this.editingKeyMode + "K]";
+        int tagW = this.font.width(modeTag);
+        g.drawString(this.font, modeTag, rightPanelX + rightPanelW - 8 - tagW, rightPanelY + 7, 0xFFFFCA28, false);
+
+        // Área activa de la mini-pista
+        int trackAreaTop = rightPanelY + 24;
+        int trackAreaBottom = rightPanelY + rightPanelH - 20;
+        int trackAreaH = trackAreaBottom - trackAreaTop;
+
+        int keyCount = this.editingKeyMode;
+        int laneW = (keyCount == 4) ? 30 : 22;
+        int boardW = keyCount * laneW;
+        int boardStartX = rightPanelX + (rightPanelW - boardW) / 2;
+
+        // Calcular posición de la línea de impacto dentro del preview escalada armónicamente
+        int hitOffset = VSRCraftSettings.get().hitPositionOffsetBottom;
+        int hitLineY = trackAreaBottom - Math.max(20, Math.min(trackAreaH - 30, (int) (hitOffset * 0.8f)));
+
+        g.enableScissor(rightPanelX + 1, trackAreaTop, rightPanelX + rightPanelW - 1, trackAreaBottom);
+
+        // 1. Pista y carriles (aplica opacidad configurada)
+        float alpha = VSRCraftSettings.get().laneAlpha;
+        int bgAlpha = Math.max(10, Math.min(255, Math.round(alpha * 255)));
+        int trackBgColor = (bgAlpha << 24) | 0x101015;
+
+        g.fill(boardStartX, trackAreaTop, boardStartX + boardW, trackAreaBottom, trackBgColor);
+
+        // Divisores de carriles
+        int divAlpha = Math.max(5, Math.round(alpha * 0.4f * 255));
+        int dividerColor = (divAlpha << 24) | 0xFFFFFF;
+        for (int i = 0; i <= keyCount; i++) {
+            int lx = boardStartX + (i * laneW);
+            g.fill(lx, trackAreaTop, lx + 1, trackAreaBottom, dividerColor);
+        }
+
+        // Resplandor de carriles si la tecla está presionada
+        if (VSRCraftSettings.get().enableLaneGlow) {
+            for (int lane = 0; lane < keyCount; lane++) {
+                if (this.previewPressed[lane]) {
+                    int lx = boardStartX + (lane * laneW);
+                    g.fill(lx, trackAreaTop, lx + laneW, trackAreaBottom, 0x3344AAFF);
+                }
+            }
+        }
+
+        // 2. Línea de Impacto
+        g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, 0xFFFFCC00);
+
+        // 3. Notas en bucle continuo a la velocidad y grosor configurados
+        long now = System.currentTimeMillis();
+        long loopElapsed = (now - this.previewLoopStart) % LOOP_DURATION_MS;
+        double currentPreviewTimeMs = loopElapsed;
+
+        float scrollSpeed = VSRCraftSettings.get().scrollSpeed;
+        int noteH = VSRCraftSettings.get().noteHeight;
+        int halfNote = noteH / 2;
+        int hitCenterY = hitLineY + 1;
+
+        List<Note> previewNotes = (keyCount == 4) ? this.previewNotes4K : this.previewNotes7K;
+
+        for (Note note : previewNotes) {
+            int noteX = boardStartX + (note.getLane() * laneW) + 2;
+            int noteWidth = laneW - 3;
+            int noteColor = LaneTheme.getLaneColor(note.getLane(), keyCount);
+
+            // Cola de Hold
+            if (note.getType() == Note.Type.HOLD && note.getDurationMs() > 0) {
+                double timeUntilHead = note.getOffsetMs() - currentPreviewTimeMs;
+                double timeUntilTail = (note.getOffsetMs() + note.getDurationMs()) - currentPreviewTimeMs;
+
+                int headY = Math.round(hitCenterY - (float) (timeUntilHead * scrollSpeed));
+                int tailY = Math.round(hitCenterY - (float) (timeUntilTail * scrollSpeed));
+
+                if (headY >= trackAreaTop && tailY <= trackAreaBottom && headY > tailY) {
+                    int clampedTailY = Math.max(trackAreaTop, tailY);
+                    int clampedHeadY = Math.min(trackAreaBottom, headY);
+                    int holdAlphaColor = (noteColor & 0x00FFFFFF) | 0x88000000;
+                    g.fill(noteX + 3, clampedTailY, noteX + noteWidth - 3, clampedHeadY, holdAlphaColor);
+                }
+            }
+
+            // Cabeza de la nota
+            double timeUntilHit = note.getOffsetMs() - currentPreviewTimeMs;
+            int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
+            int topY = centerY - halfNote;
+            int bottomY = topY + noteH;
+
+            if (bottomY >= trackAreaTop && topY <= trackAreaBottom) {
+                g.fill(noteX, topY, noteX + noteWidth, bottomY, noteColor);
+            }
+        }
+
+        g.disableScissor();
+
+        // Indicador inferior del Live Preview
+        String hintText = "Toca tus teclas para probar en vivo";
+        g.drawCenteredString(this.font, hintText, rightPanelX + rightPanelW / 2, trackAreaBottom + 5, 0xFF88AABB);
+    }
+
+    private static void drawBorder(GuiGraphics g, int x, int y, int w, int h, int color) {
+        g.fill(x, y, x + w, y + 1, color);
+        g.fill(x, y + h - 1, x + w, y + h, color);
+        g.fill(x, y, x + 1, y + h, color);
+        g.fill(x + w - 1, y, x + w, y + h, color);
     }
 
     @Override
