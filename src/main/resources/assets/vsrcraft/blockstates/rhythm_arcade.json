@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "vsrcraft:block/rhythm_arcade"
+    },
+    "facing=east": {
+      "model": "vsrcraft:block/rhythm_arcade",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "vsrcraft:block/rhythm_arcade",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "vsrcraft:block/rhythm_arcade",
+      "y": 270
+    }
+  }
+}
