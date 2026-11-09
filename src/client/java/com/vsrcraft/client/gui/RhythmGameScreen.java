@@ -228,9 +228,14 @@ public class RhythmGameScreen extends Screen {
 
     @Override
     public boolean keyReleased(KeyEvent event) {
+        long currentSongTime = Math.round(getCurrentSongTimeMs());
         for (int lane = 0; lane < keyCount; lane++) {
             if (event.key() == laneKeys[lane]) {
                 lanePressed[lane] = false;
+                Judgement releaseJudgement = engine.onLaneReleased(lane, currentSongTime);
+                if (releaseJudgement != null && releaseJudgement != Judgement.MISS) {
+                    AudioManager.playHitSound();
+                }
                 return true;
             }
         }

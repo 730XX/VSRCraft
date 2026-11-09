@@ -20,23 +20,32 @@ public class NoteRenderer {
         int halfNote = noteHeight / 2;
 
         for (Note note : notes) {
-            if (note.isMissed()) continue;
+            // Notas completadas con éxito ya no se dibujan
+            if (note.isCompleted()) continue;
 
             boolean isHold = note.getType() == Note.Type.HOLD && note.getDurationMs() > 0;
-            long endOffsetMs = note.getOffsetMs() + note.getDurationMs();
+            long endOffsetMs = note.getTailOffsetMs();
 
-            // Si es TAP y ya fue golpeada, o si es HOLD y ya terminó su duración, no renderizar
-            if (note.isHit() && (!isHold || currentSongTimeMs >= endOffsetMs)) {
-                continue;
+            // Si es TAP y ya se golpeó o falló, o si es HOLD y ya terminó su tiempo en la pantalla
+            if (!isHold) {
+                if (note.isHit() || note.isMissed()) continue;
+            } else {
+                if (currentSongTimeMs >= endOffsetMs + 100) continue;
             }
 
             int noteX = boardStartX + (note.getLane() * RhythmConfig.LANE_WIDTH) + 2;
             int noteWidth = RhythmConfig.LANE_WIDTH - 4;
-            int noteColor = LaneTheme.getLaneColor(note.getLane(), laneCount);
+            int baseColor = LaneTheme.getLaneColor(note.getLane(), laneCount);
 
-            // Renderizar cola de nota HOLD (si aplica)
+            boolean isHolding = note.isHolding();
+            boolean isDropped = note.isDropped();
+
+            // Color de renderizado: si fue cortada o fallada, se oscurece a un gris tenue
+            int noteColor = isDropped ? 0x66556677 : baseColor;
+
+            // 1. Renderizar cola / cuerpo de la nota HOLD
             if (isHold) {
-                double headTimeMs = note.isHit() ? Math.max(note.getOffsetMs(), currentSongTimeMs) : note.getOffsetMs();
+                double headTimeMs = isHolding ? currentSongTimeMs : note.getOffsetMs();
                 double timeUntilHead = headTimeMs - currentSongTimeMs;
                 double timeUntilTail = endOffsetMs - currentSongTimeMs;
 
@@ -46,21 +55,33 @@ public class NoteRenderer {
                 if (headY >= 0 && tailY <= screenHeight && headY > tailY) {
                     int clampedTailY = Math.max(0, tailY);
                     int clampedHeadY = Math.min(screenHeight, headY);
-                    int holdColor = (noteColor & 0x00FFFFFF) | 0x88000000;
-                    graphics.fill(noteX + 4, clampedTailY, noteX + noteWidth - 4, clampedHeadY, holdColor);
+
+                    int holdAlphaColor = isDropped ? 0x33445566 : ((noteColor & 0x00FFFFFF) | 0x88000000);
+                    graphics.fill(noteX + 4, clampedTailY, noteX + noteWidth - 4, clampedHeadY, holdAlphaColor);
+
+                    // Borde lateral sutil de la cola si está activa
+                    if (isHolding) {
+                        graphics.fill(noteX + 3, clampedTailY, noteX + 4, clampedHeadY, 0xCCFFFFFF);
+                        graphics.fill(noteX + noteWidth - 4, clampedTailY, noteX + noteWidth - 3, clampedHeadY, 0xCCFFFFFF);
+                    }
                 }
             }
 
-            // Renderizar cabeza de la nota (centrada exactamente sobre hitCenterY cuando timeUntilHit == 0)
-            double effectiveNoteTimeMs = (note.isHit() && isHold) ? currentSongTimeMs : note.getOffsetMs();
+            // 2. Renderizar cabeza de la nota
+            // Si está siendo sostenida, la cabeza se ancla fijamente en la línea de impacto
+            double effectiveNoteTimeMs = isHolding ? currentSongTimeMs : note.getOffsetMs();
             double timeUntilHit = effectiveNoteTimeMs - currentSongTimeMs;
             int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
             int noteTopY = centerY - halfNote;
             int noteBottomY = noteTopY + noteHeight;
 
             if (noteBottomY >= 0 && noteTopY <= screenHeight) {
-                // Color sólido limpio del carril (sin línea blanca desfasada)
                 graphics.fill(noteX, noteTopY, noteX + noteWidth, noteBottomY, noteColor);
+
+                // Destello brillante en la cabeza mientras el jugador la sostiene activamente
+                if (isHolding) {
+                    graphics.fill(noteX + 1, noteTopY + 1, noteX + noteWidth - 1, noteTopY + 3, 0xFFFFFFFF);
+                }
             }
         }
     }
