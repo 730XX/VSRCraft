@@ -131,7 +131,7 @@ public class SongSelectScreen extends Screen {
                 btn -> openSettings()
         )
         .bounds(gearX, 4, 24, 20)
-        .tooltip(Tooltip.create(Component.literal("Ajustes y Personalización (Tecla O)")))
+        .tooltip(Tooltip.create(Component.literal("Ajustes y Personalización")))
         .build());
 
         // 3. Botón [↻] Recargar beatmaps

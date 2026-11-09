@@ -1,19 +1,12 @@
 {
   "variants": {
-    "facing=north": {
-      "model": "vsrcraft:block/rhythm_arcade"
-    },
-    "facing=east": {
-      "model": "vsrcraft:block/rhythm_arcade",
-      "y": 90
-    },
-    "facing=south": {
-      "model": "vsrcraft:block/rhythm_arcade",
-      "y": 180
-    },
-    "facing=west": {
-      "model": "vsrcraft:block/rhythm_arcade",
-      "y": 270
-    }
+    "facing=north,half=lower": { "model": "vsrcraft:block/rhythm_arcade_lower" },
+    "facing=east,half=lower":  { "model": "vsrcraft:block/rhythm_arcade_lower", "y": 90 },
+    "facing=south,half=lower": { "model": "vsrcraft:block/rhythm_arcade_lower", "y": 180 },
+    "facing=west,half=lower":  { "model": "vsrcraft:block/rhythm_arcade_lower", "y": 270 },
+    "facing=north,half=upper": { "model": "vsrcraft:block/rhythm_arcade_upper" },
+    "facing=east,half=upper":  { "model": "vsrcraft:block/rhythm_arcade_upper", "y": 90 },
+    "facing=south,half=upper": { "model": "vsrcraft:block/rhythm_arcade_upper", "y": 180 },
+    "facing=west,half=upper":  { "model": "vsrcraft:block/rhythm_arcade_upper", "y": 270 }
   }
 }

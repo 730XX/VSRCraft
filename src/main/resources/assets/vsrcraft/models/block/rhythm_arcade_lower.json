@@ -1,0 +1,141 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "vsrcraft:block/rhythm_arcade_front_lower",
+    "front": "vsrcraft:block/rhythm_arcade_front_lower",
+    "side": "vsrcraft:block/rhythm_arcade_side_lower",
+    "back": "vsrcraft:block/rhythm_arcade_back_lower",
+    "top": "vsrcraft:block/rhythm_arcade_top",
+    "keys": "vsrcraft:block/rhythm_arcade_keys"
+  },
+  "elements": [
+    {
+      "name": "base_pedestal",
+      "from": [1, 0, 1],
+      "to": [15, 2, 15],
+      "faces": {
+        "north": { "uv": [1, 14, 15, 16], "texture": "#front" },
+        "south": { "uv": [1, 14, 15, 16], "texture": "#back" },
+        "west":  { "uv": [1, 14, 15, 16], "texture": "#side" },
+        "east":  { "uv": [1, 14, 15, 16], "texture": "#side" },
+        "up":    { "uv": [1, 1, 15, 15], "texture": "#top" },
+        "down":  { "uv": [1, 1, 15, 15], "texture": "#back", "cullface": "down" }
+      }
+    },
+    {
+      "name": "lower_cabinet_body",
+      "from": [2, 2, 3],
+      "to": [14, 12, 14],
+      "faces": {
+        "north": { "uv": [2, 5, 14, 14], "texture": "#front" },
+        "south": { "uv": [2, 5, 14, 14], "texture": "#back" },
+        "west":  { "uv": [3, 5, 14, 14], "texture": "#side" },
+        "east":  { "uv": [2, 5, 13, 14], "texture": "#side" }
+      }
+    },
+    {
+      "name": "front_disc_slot_bezel",
+      "from": [4, 6, 2],
+      "to": [12, 9, 3],
+      "faces": {
+        "north": { "uv": [4, 7, 12, 10], "texture": "#front" },
+        "west":  { "uv": [0, 8, 1, 11], "texture": "#keys" },
+        "east":  { "uv": [0, 8, 1, 11], "texture": "#keys" },
+        "up":    { "uv": [4, 8, 12, 9], "texture": "#keys" },
+        "down":  { "uv": [4, 11, 12, 12], "texture": "#keys" }
+      }
+    },
+    {
+      "name": "control_deck_tray",
+      "from": [1, 12, 1],
+      "to": [15, 14, 14],
+      "faces": {
+        "north": { "uv": [1, 2, 15, 4], "texture": "#front" },
+        "south": { "uv": [1, 2, 15, 4], "texture": "#back" },
+        "west":  { "uv": [1, 2, 14, 4], "texture": "#side" },
+        "east":  { "uv": [2, 2, 15, 4], "texture": "#side" },
+        "up":    { "uv": [1, 8, 15, 16], "texture": "#keys" },
+        "down":  { "uv": [1, 1, 15, 14], "texture": "#back" }
+      }
+    },
+    {
+      "name": "key_lane_1_cyan",
+      "from": [2, 14, 2],
+      "to": [4, 15.5, 6],
+      "faces": {
+        "north": { "uv": [1, 4, 3, 6], "texture": "#keys" },
+        "south": { "uv": [1, 4, 3, 6], "texture": "#keys" },
+        "west":  { "uv": [1, 4, 5, 6], "texture": "#keys" },
+        "east":  { "uv": [1, 4, 5, 6], "texture": "#keys" },
+        "up":    { "uv": [1, 1, 3, 5], "texture": "#keys" }
+      }
+    },
+    {
+      "name": "key_lane_2_white",
+      "from": [5.3, 14, 2],
+      "to": [7.3, 15.5, 6],
+      "faces": {
+        "north": { "uv": [9, 4, 11, 6], "texture": "#keys" },
+        "south": { "uv": [9, 4, 11, 6], "texture": "#keys" },
+        "west":  { "uv": [9, 4, 13, 6], "texture": "#keys" },
+        "east":  { "uv": [9, 4, 13, 6], "texture": "#keys" },
+        "up":    { "uv": [9, 1, 11, 5], "texture": "#keys" }
+      }
+    },
+    {
+      "name": "key_lane_3_white",
+      "from": [8.7, 14, 2],
+      "to": [10.7, 15.5, 6],
+      "faces": {
+        "north": { "uv": [9, 4, 11, 6], "texture": "#keys" },
+        "south": { "uv": [9, 4, 11, 6], "texture": "#keys" },
+        "west":  { "uv": [9, 4, 13, 6], "texture": "#keys" },
+        "east":  { "uv": [9, 4, 13, 6], "texture": "#keys" },
+        "up":    { "uv": [9, 1, 11, 5], "texture": "#keys" }
+      }
+    },
+    {
+      "name": "key_lane_4_cyan",
+      "from": [12, 14, 2],
+      "to": [14, 15.5, 6],
+      "faces": {
+        "north": { "uv": [1, 4, 3, 6], "texture": "#keys" },
+        "south": { "uv": [1, 4, 3, 6], "texture": "#keys" },
+        "west":  { "uv": [1, 4, 5, 6], "texture": "#keys" },
+        "east":  { "uv": [1, 4, 5, 6], "texture": "#keys" },
+        "up":    { "uv": [1, 1, 3, 5], "texture": "#keys" }
+      }
+    },
+    {
+      "name": "neck_connector",
+      "from": [2, 14, 6],
+      "to": [14, 16, 14],
+      "faces": {
+        "north": { "uv": [2, 0, 14, 2], "texture": "#front" },
+        "south": { "uv": [2, 0, 14, 2], "texture": "#back" },
+        "west":  { "uv": [6, 0, 14, 2], "texture": "#side" },
+        "east":  { "uv": [2, 0, 10, 2], "texture": "#side" }
+      }
+    },
+    {
+      "name": "neck_wing_left",
+      "from": [1, 14, 6],
+      "to": [2, 16, 14],
+      "faces": {
+        "north": { "uv": [0, 0, 1, 2], "texture": "#front" },
+        "south": { "uv": [15, 0, 16, 2], "texture": "#back" },
+        "west":  { "uv": [6, 0, 14, 2], "texture": "#side" }
+      }
+    },
+    {
+      "name": "neck_wing_right",
+      "from": [14, 14, 6],
+      "to": [15, 16, 14],
+      "faces": {
+        "north": { "uv": [15, 0, 16, 2], "texture": "#front" },
+        "south": { "uv": [0, 0, 1, 2], "texture": "#back" },
+        "east":  { "uv": [2, 0, 10, 2], "texture": "#side" }
+      }
+    }
+  ]
+}
