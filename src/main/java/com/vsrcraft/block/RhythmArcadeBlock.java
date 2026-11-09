@@ -94,11 +94,12 @@ public class RhythmArcadeBlock extends HorizontalDirectionalBlock {
 
     @Override
     protected boolean canSurvive(BlockState state, LevelReader level, BlockPos pos) {
+        BlockPos belowPos = pos.below();
+        BlockState belowState = level.getBlockState(belowPos);
         if (state.getValue(HALF) == DoubleBlockHalf.LOWER) {
-            return level.getBlockState(pos.below()).isSolid();
+            return belowState.isFaceSturdy(level, belowPos, Direction.UP);
         } else {
-            BlockState below = level.getBlockState(pos.below());
-            return below.is(this) && below.getValue(HALF) == DoubleBlockHalf.LOWER;
+            return belowState.is(this);
         }
     }
 
