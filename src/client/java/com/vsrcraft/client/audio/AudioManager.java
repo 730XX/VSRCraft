@@ -105,8 +105,6 @@ public class AudioManager {
     }
 
     public static synchronized void preloadMusicFromResource(String resourcePath) {
-        stopMusic();
-
         if (resourcePath == null || resourcePath.isEmpty()) {
             resourcePath = "/assets/vsrcraft/sounds/music/whatsup.ogg";
         }
@@ -116,6 +114,27 @@ public class AudioManager {
             client.getMusicManager().stopPlaying();
         }
 
+        // Si este mismo archivo ya fue decodificado (ej. por el preview del selector) o se está decodificando,
+        // reutilizamos el buffer de OpenAL sin volver a decodificar todo el MP3/OGG desde cero.
+        if (Objects.equals(currentAudioPath, resourcePath) && (musicReady || preloadFuture != null)) {
+            if (musicSourceId != 0) {
+                AL10.alSourceStop(musicSourceId);
+                AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_FALSE);
+                AL10.alSourceRewind(musicSourceId);
+                AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, 0.0f);
+            }
+            musicPlaying = false;
+            musicPaused = false;
+            musicFinished = false;
+            pendingPreview = false;
+            previewMode = false;
+            lastSampleOffset = -1;
+            lastHardwareTimeMs = 0.0;
+            lastReturnedTimeMs = 0.0;
+            return;
+        }
+
+        stopMusic();
         currentAudioPath = resourcePath;
         final String pathToLoad = resourcePath;
         preloadFuture = CompletableFuture.supplyAsync(() -> decodeAudioResource(pathToLoad));
@@ -455,6 +474,53 @@ public class AudioManager {
     private static DecodedAudio decodeMp3Bytes(byte[] rawBytes, String resourcePath) {
         Bitstream bitstream = null;
         try {
+            // 1. Inspeccionar cabecera ID3v2 y primer frame MPEG para detectar frames de metadatos (Xing/Info/VBRI)
+            //    y el Encoder Delay de LAME/Lavc. JLayer 1.0.1 no descarta el frame 0 ("Info"/"Xing") ni el delay
+            //    del filtro de síntesis MPEG Layer 3 (528 muestras) + LAME encoder delay (576 muestras), lo que
+            //    introduce ~65-77ms de silencio artificial al inicio respecto al motor BASS de osu!.
+            int id3End = 0;
+            if (rawBytes.length >= 10 && rawBytes[0] == 'I' && rawBytes[1] == 'D' && rawBytes[2] == '3') {
+                int id3Size = ((rawBytes[6] & 0x7F) << 21)
+                        | ((rawBytes[7] & 0x7F) << 14)
+                        | ((rawBytes[8] & 0x7F) << 7)
+                        | (rawBytes[9] & 0x7F);
+                id3End = Math.min(rawBytes.length, 10 + id3Size);
+            }
+
+            int syncPos = id3End;
+            while (syncPos + 4 < rawBytes.length
+                    && !((rawBytes[syncPos] & 0xFF) == 0xFF && (rawBytes[syncPos + 1] & 0xE0) == 0xE0)) {
+                syncPos++;
+            }
+
+            boolean hasVbrHeaderFrame = false;
+            int encoderDelaySamples = 576;
+            for (int i = syncPos; i < Math.min(rawBytes.length - 4, syncPos + 64); i++) {
+                if ((rawBytes[i] == 'X' && rawBytes[i + 1] == 'i' && rawBytes[i + 2] == 'n' && rawBytes[i + 3] == 'g')
+                        || (rawBytes[i] == 'I' && rawBytes[i + 1] == 'n' && rawBytes[i + 2] == 'f' && rawBytes[i + 3] == 'o')
+                        || (rawBytes[i] == 'V' && rawBytes[i + 1] == 'B' && rawBytes[i + 2] == 'R' && rawBytes[i + 3] == 'I')) {
+                    hasVbrHeaderFrame = true;
+                    if (i + 143 < rawBytes.length) {
+                        int b0 = rawBytes[i + 141] & 0xFF;
+                        int b1 = rawBytes[i + 142] & 0xFF;
+                        int parsedDelay = (b0 << 4) | (b1 >> 4);
+                        if (parsedDelay > 0 && parsedDelay <= 2880) {
+                            encoderDelaySamples = parsedDelay;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // Detectar si existe un segundo frame LAME silencioso por doble recodificación (ej. LAME -> Lavf/FFmpeg)
+            boolean hasSecondLamePaddingFrame = false;
+            if (hasVbrHeaderFrame && syncPos + 2000 <= rawBytes.length) {
+                String headWindow = new String(rawBytes, syncPos, 2000, java.nio.charset.StandardCharsets.ISO_8859_1);
+                if (headWindow.indexOf("LAME", 250) != -1) {
+                    hasSecondLamePaddingFrame = true;
+                }
+            }
+
             bitstream = new Bitstream(new ByteArrayInputStream(rawBytes));
             Decoder decoder = new Decoder();
 
@@ -462,6 +528,7 @@ public class AudioManager {
             int sampleRate = 0;
             short[] accum = new short[44100 * 2 * 60];
             int totalShorts = 0;
+            int frameIndex = 0;
 
             while (true) {
                 Header header;
@@ -487,7 +554,26 @@ public class AudioManager {
                             sampleRate = output.getSampleFrequency();
                         }
                         int len = output.getBufferLength();
-                        if (len > 0) {
+                        boolean skipFrame = false;
+                        if (frameIndex == 0 && hasVbrHeaderFrame) {
+                            // Descartar frame 0 de metadatos Xing / Info / VBRI (1152 muestras de silencio)
+                            skipFrame = true;
+                        } else if (frameIndex == 1 && hasSecondLamePaddingFrame) {
+                            // Verificar que el segundo frame LAME sea efectivamente silencio puro antes de descartarlo
+                            short[] buf = output.getBuffer();
+                            boolean allSilent = true;
+                            for (int s = 0; s < len; s++) {
+                                if (Math.abs((int) buf[s]) > 4) {
+                                    allSilent = false;
+                                    break;
+                                }
+                            }
+                            if (allSilent) {
+                                skipFrame = true;
+                            }
+                        }
+
+                        if (!skipFrame && len > 0) {
                             if (totalShorts + len > accum.length) {
                                 int newCap = Math.max(accum.length * 2, totalShorts + len + 44100 * 2 * 30);
                                 accum = Arrays.copyOf(accum, newCap);
@@ -501,6 +587,7 @@ public class AudioManager {
                 } finally {
                     bitstream.closeFrame();
                 }
+                frameIndex++;
             }
 
             if (totalShorts == 0 || channels <= 0 || sampleRate <= 0) {
@@ -508,9 +595,17 @@ public class AudioManager {
             }
 
             int validChannels = Math.min(2, Math.max(1, channels));
-            ShortBuffer pcm = MemoryUtil.memAllocShort(totalShorts);
-            pcm.put(accum, 0, totalShorts).flip();
-            int totalSamples = totalShorts / validChannels;
+            // Recortar el retardo del filtro de síntesis MPEG Layer 3 (528 muestras) + encoder delay de LAME
+            // (+ 576 muestras del offset universal de pipeline MP3 de osu! cuando no fue absorbido por un 2do frame LAME)
+            int trimSamples = encoderDelaySamples + 528 + (hasSecondLamePaddingFrame ? 0 : 576);
+            int trimShorts = Math.min(totalShorts / 4, trimSamples * validChannels);
+            // Asegurar alineación por par de canales (stereo frame alignment)
+            trimShorts -= (trimShorts % validChannels);
+
+            int remainingShorts = totalShorts - trimShorts;
+            ShortBuffer pcm = MemoryUtil.memAllocShort(remainingShorts);
+            pcm.put(accum, trimShorts, remainingShorts).flip();
+            int totalSamples = remainingShorts / validChannels;
             return new DecodedAudio(pcm, validChannels, sampleRate, totalSamples, false);
         } catch (Exception e) {
             System.err.println("[VSRCraft] Error decodificando MP3 (" + resourcePath + "): " + e.getMessage());

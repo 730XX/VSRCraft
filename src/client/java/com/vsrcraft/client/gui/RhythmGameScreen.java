@@ -88,7 +88,7 @@ public class RhythmGameScreen extends Screen {
         }
 
         // Botón de la tuerquita (⚙) abajo a la derecha
-        int gearButtonSize = 24;
+        int gearButtonSize = 32;
         int gearX = this.width - gearButtonSize - 12;
         int gearY = this.height - gearButtonSize - 12;
 
@@ -147,16 +147,24 @@ public class RhythmGameScreen extends Screen {
         }
     }
 
+    private boolean isLeadInComplete() {
+        if (musicStarted) return true;
+        if (startNanoTime < 0) return false;
+        long now = isPaused ? pausedNanoTime : System.nanoTime();
+        double elapsedMs = (now - startNanoTime) / 1_000_000.0;
+        return (elapsedMs - leadInMs) >= 0.0 && AudioManager.ensureMusicReady();
+    }
+
     private double getCurrentSongTimeMs() {
         if (!musicStarted) {
-            if (startNanoTime < 0) return -leadInMs;
+            if (startNanoTime < 0) return -leadInMs + VSRCraftSettings.get().globalAudioOffsetMs;
             long now = isPaused ? pausedNanoTime : System.nanoTime();
             double elapsedMs = (now - startNanoTime) / 1_000_000.0;
             double leadInCurrent = elapsedMs - leadInMs;
             if (leadInCurrent >= 0.0 && !AudioManager.ensureMusicReady()) {
-                return -1.0;
+                return -1.0 + VSRCraftSettings.get().globalAudioOffsetMs;
             }
-            return leadInCurrent;
+            return leadInCurrent + VSRCraftSettings.get().globalAudioOffsetMs;
         }
         return AudioManager.getMusicTimeMs() + VSRCraftSettings.get().globalAudioOffsetMs;
     }
@@ -176,14 +184,13 @@ public class RhythmGameScreen extends Screen {
             AudioManager.ensureMusicReady();
         }
 
-        double currentSongTimeMs = getCurrentSongTimeMs();
-
-        // Arrancar la música con latencia cero al cruzar el ms 0
-        if (!musicStarted && !isPaused && !engine.isFailed() && currentSongTimeMs >= 0.0) {
+        // Arrancar la música con latencia cero al cruzar el ms 0 del lead-in
+        if (!musicStarted && !isPaused && !engine.isFailed() && isLeadInComplete()) {
             AudioManager.startPreloadedMusic();
             musicStarted = true;
-            currentSongTimeMs = AudioManager.getMusicTimeMs() + VSRCraftSettings.get().globalAudioOffsetMs;
         }
+
+        double currentSongTimeMs = getCurrentSongTimeMs();
 
         long currentSongTimeLong = Math.round(currentSongTimeMs);
         if (!isPaused && !engine.isFailed()) {

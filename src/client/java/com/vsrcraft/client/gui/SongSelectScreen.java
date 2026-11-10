@@ -279,7 +279,6 @@ public class SongSelectScreen extends Screen {
     private void startSelectedBeatmap() {
         if (this.selectedBeatmap == null || this.minecraft == null) return;
         this.transitioningToSubScreen = true;
-        AudioManager.stopMusic();
         this.minecraft.setScreen(new RhythmGameScreen(this.selectedBeatmap));
     }
 

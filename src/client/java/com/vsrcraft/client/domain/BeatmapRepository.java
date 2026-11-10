@@ -161,12 +161,13 @@ public class BeatmapRepository {
             }
         }
 
-        // 2. Fallback: buscar cualquier archivo .ogg, .mp3 o .wav en la carpeta del beatmap
+        // 2. Fallback: buscar el archivo de audio principal (.ogg, .mp3 o .wav de mayor tamaño, evitando hitsounds)
         File[] siblings = parentDir.listFiles((d, name) -> {
             String lower = name.toLowerCase(Locale.ROOT);
             return lower.endsWith(".ogg") || lower.endsWith(".mp3") || lower.endsWith(".wav");
         });
         if (siblings != null && siblings.length > 0) {
+            java.util.Arrays.sort(siblings, Comparator.comparingLong(File::length).reversed());
             return siblings[0];
         }
         return null;
