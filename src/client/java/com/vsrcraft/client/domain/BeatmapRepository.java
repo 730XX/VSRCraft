@@ -17,6 +17,7 @@ import java.util.Map;
 /**
  * Catálogo centralizado de Beatmaps y Canciones (BeatmapSets) de VSRCraft.
  * Agrupa automáticamente las dificultades por canción/set para un selector limpio.
+ * Soporta pistas de audio en formato .ogg, .mp3 y .wav.
  */
 public class BeatmapRepository {
     private static final List<BeatmapSet> cachedSets = new ArrayList<>();
@@ -77,7 +78,7 @@ public class BeatmapRepository {
             }
         }
 
-        // 2. Escanear carpeta externa .minecraft/vsrg_beatmaps/ para canciones personalizadas
+        // 2. Escanear carpeta externa .minecraft/vsrg_beatmaps/ para canciones personalizadas (.ogg, .mp3, .wav)
         File externalDir = getExternalBeatmapsDir();
         if (!externalDir.exists()) {
             externalDir.mkdirs();
@@ -133,22 +134,7 @@ public class BeatmapRepository {
 
             File parentDir = osuFile.getParentFile();
             String audioFileName = map.getAudioFilename();
-            File audioFile = null;
-
-            if (audioFileName != null && !audioFileName.isEmpty()) {
-                File candidate = new File(parentDir, audioFileName);
-                if (candidate.exists() && candidate.isFile()) {
-                    audioFile = candidate;
-                }
-            }
-
-            // Si el nombre no coincide exactamente pero hay un .ogg en la carpeta, usar el primer .ogg
-            if (audioFile == null && parentDir != null) {
-                File[] siblings = parentDir.listFiles((d, name) -> name.toLowerCase(Locale.ROOT).endsWith(".ogg"));
-                if (siblings != null && siblings.length > 0) {
-                    audioFile = siblings[0];
-                }
-            }
+            File audioFile = resolveAudioFile(parentDir, audioFileName);
 
             if (audioFile != null && audioFile.exists()) {
                 map.setAudioResourcePath("file:" + audioFile.getAbsolutePath());
@@ -157,6 +143,33 @@ public class BeatmapRepository {
         } catch (Exception e) {
             System.err.println("[VSRCraft] Error leyendo beatmap externo " + osuFile.getName() + ": " + e.getMessage());
         }
+    }
+
+    private static File resolveAudioFile(File parentDir, String audioFileName) {
+        if (parentDir == null || !parentDir.isDirectory()) return null;
+
+        // 1. Coincidencia directa con AudioFilename del .osu
+        if (audioFileName != null && !audioFileName.isEmpty()) {
+            File candidate = new File(parentDir, audioFileName);
+            if (candidate.exists() && candidate.isFile()) {
+                return candidate;
+            }
+            // Coincidencia ignorando mayúsculas/minúsculas
+            File[] exactMatches = parentDir.listFiles((d, name) -> name.equalsIgnoreCase(audioFileName));
+            if (exactMatches != null && exactMatches.length > 0) {
+                return exactMatches[0];
+            }
+        }
+
+        // 2. Fallback: buscar cualquier archivo .ogg, .mp3 o .wav en la carpeta del beatmap
+        File[] siblings = parentDir.listFiles((d, name) -> {
+            String lower = name.toLowerCase(Locale.ROOT);
+            return lower.endsWith(".ogg") || lower.endsWith(".mp3") || lower.endsWith(".wav");
+        });
+        if (siblings != null && siblings.length > 0) {
+            return siblings[0];
+        }
+        return null;
     }
 
     public static File getExternalBeatmapsDir() {

@@ -1,6 +1,10 @@
 package com.vsrcraft.client.audio;
 
 import com.vsrcraft.client.config.VSRCraftSettings;
+import javazoom.jl.decoder.Bitstream;
+import javazoom.jl.decoder.Decoder;
+import javazoom.jl.decoder.Header;
+import javazoom.jl.decoder.SampleBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -11,17 +15,24 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.libc.LibCStdlib;
 
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Motor de audio de baja latencia basado directamente en OpenAL + STBVorbis.
+ * Motor de audio de baja latencia basado directamente en OpenAL (con soporte multi-formato OGG, MP3 y WAV).
  * Actúa como el Reloj Maestro (Master Audio Clock) estilo osu! para garantizar
  * sincronización exacta a nivel de muestras (AL_SAMPLE_OFFSET) con interpolación sub-milisegundo.
  */
@@ -32,12 +43,25 @@ public class AudioManager {
         final int channels;
         final int sampleRate;
         final int totalSamples;
+        final boolean allocatedByStb;
 
-        DecodedAudio(ShortBuffer pcm, int channels, int sampleRate, int totalSamples) {
+        DecodedAudio(ShortBuffer pcm, int channels, int sampleRate, int totalSamples, boolean allocatedByStb) {
             this.pcm = pcm;
             this.channels = channels;
             this.sampleRate = sampleRate;
             this.totalSamples = totalSamples;
+            this.allocatedByStb = allocatedByStb;
+        }
+
+        void freePcm() {
+            if (pcm == null) return;
+            if (allocatedByStb) {
+                // STBVorbis aloca memoria internamente con malloc de C; debe liberarse con LibCStdlib.free
+                // (MemoryUtil.memFree fallaría en Minecraft porque Minecraft usa jemalloc como alocador primario)
+                LibCStdlib.free(pcm);
+            } else {
+                MemoryUtil.memFree(pcm);
+            }
         }
     }
 
@@ -73,7 +97,7 @@ public class AudioManager {
     private static boolean hitSoundInitialized = false;
 
     /**
-     * Precarga en segundo plano el archivo .ogg asociado al SoundEvent o ruta de recursos.
+     * Precarga en segundo plano el archivo de audio asociado al SoundEvent o ruta de recursos.
      */
     public static synchronized void preloadMusic(SoundEvent sound) {
         String resourcePath = resolveResourcePath(sound);
@@ -94,7 +118,7 @@ public class AudioManager {
 
         currentAudioPath = resourcePath;
         final String pathToLoad = resourcePath;
-        preloadFuture = CompletableFuture.supplyAsync(() -> decodeOggResource(pathToLoad));
+        preloadFuture = CompletableFuture.supplyAsync(() -> decodeAudioResource(pathToLoad));
     }
 
     /**
@@ -169,9 +193,7 @@ public class AudioManager {
                 musicReady = true;
                 return true;
             } finally {
-                // STBVorbis aloca memoria internamente con malloc de C; debe liberarse con LibCStdlib.free
-                // (MemoryUtil.memFree fallaría en Minecraft porque Minecraft usa jemalloc como alocador primario)
-                LibCStdlib.free(decoded.pcm);
+                decoded.freePcm();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -308,7 +330,7 @@ public class AudioManager {
         if (hitSoundInitialized) return;
         hitSoundInitialized = true;
 
-        DecodedAudio decoded = decodeOggResource("/assets/vsrcraft/sounds/sfx/hit_clap.ogg");
+        DecodedAudio decoded = decodeAudioResource("/assets/vsrcraft/sounds/sfx/hit_clap.ogg");
         if (decoded == null || decoded.pcm == null) return;
 
         try {
@@ -325,7 +347,7 @@ public class AudioManager {
                 hitSoundSources[i] = src;
             }
         } finally {
-            LibCStdlib.free(decoded.pcm);
+            decoded.freePcm();
         }
     }
 
@@ -366,14 +388,45 @@ public class AudioManager {
         return AudioManager.class.getResourceAsStream(resourcePath);
     }
 
-    private static DecodedAudio decodeOggResource(String resourcePath) {
-        ByteBuffer vorbisBytes = null;
+    /**
+     * Decodifica automáticamente archivos .ogg, .mp3 o .wav en PCM de 16 bits para OpenAL.
+     * Incluye fallback automático por si un mapa de osu! tiene la extensión cambiada (ej. MP3 nombrado como .ogg).
+     */
+    private static DecodedAudio decodeAudioResource(String resourcePath) {
         try (InputStream stream = openAudioStream(resourcePath)) {
             if (stream == null) {
                 System.err.println("[VSRCraft] No se encontró el recurso de audio: " + resourcePath);
                 return null;
             }
             byte[] rawBytes = stream.readAllBytes();
+            if (rawBytes.length == 0) {
+                return null;
+            }
+
+            String lower = resourcePath.toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".mp3")) {
+                DecodedAudio mp3 = decodeMp3Bytes(rawBytes, resourcePath);
+                if (mp3 != null) return mp3;
+                return decodeOggBytes(rawBytes, resourcePath);
+            } else if (lower.endsWith(".wav")) {
+                DecodedAudio wav = decodeWavBytes(rawBytes, resourcePath);
+                if (wav != null) return wav;
+                return decodeMp3Bytes(rawBytes, resourcePath);
+            } else {
+                DecodedAudio ogg = decodeOggBytes(rawBytes, resourcePath);
+                if (ogg != null) return ogg;
+                // Fallback a MP3 por si el mapper renombró un .mp3 a .ogg
+                return decodeMp3Bytes(rawBytes, resourcePath);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private static DecodedAudio decodeOggBytes(byte[] rawBytes, String resourcePath) {
+        ByteBuffer vorbisBytes = null;
+        try {
             vorbisBytes = MemoryUtil.memAlloc(rawBytes.length);
             vorbisBytes.put(rawBytes).flip();
 
@@ -382,16 +435,15 @@ public class AudioManager {
                 IntBuffer sampleRateBuf = stack.mallocInt(1);
                 ShortBuffer pcm = STBVorbis.stb_vorbis_decode_memory(vorbisBytes, channelsBuf, sampleRateBuf);
                 if (pcm == null) {
-                    System.err.println("[VSRCraft] Error decodificando OGG con STBVorbis: " + resourcePath);
                     return null;
                 }
                 int channels = channelsBuf.get(0);
                 int sampleRate = sampleRateBuf.get(0);
                 int totalSamples = pcm.limit() / Math.max(1, channels);
-                return new DecodedAudio(pcm, channels, sampleRate, totalSamples);
+                return new DecodedAudio(pcm, channels, sampleRate, totalSamples, true);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[VSRCraft] Error decodificando OGG con STBVorbis (" + resourcePath + "): " + e.getMessage());
             return null;
         } finally {
             if (vorbisBytes != null) {
@@ -400,12 +452,125 @@ public class AudioManager {
         }
     }
 
+    private static DecodedAudio decodeMp3Bytes(byte[] rawBytes, String resourcePath) {
+        Bitstream bitstream = null;
+        try {
+            bitstream = new Bitstream(new ByteArrayInputStream(rawBytes));
+            Decoder decoder = new Decoder();
+
+            int channels = 0;
+            int sampleRate = 0;
+            short[] accum = new short[44100 * 2 * 60];
+            int totalShorts = 0;
+
+            while (true) {
+                Header header;
+                try {
+                    header = bitstream.readFrame();
+                } catch (Exception frameEx) {
+                    try {
+                        bitstream.closeFrame();
+                        continue;
+                    } catch (Exception ignored) {
+                        break;
+                    }
+                }
+                if (header == null) {
+                    break;
+                }
+
+                try {
+                    SampleBuffer output = (SampleBuffer) decoder.decodeFrame(header, bitstream);
+                    if (output != null) {
+                        if (channels == 0) {
+                            channels = output.getChannelCount();
+                            sampleRate = output.getSampleFrequency();
+                        }
+                        int len = output.getBufferLength();
+                        if (len > 0) {
+                            if (totalShorts + len > accum.length) {
+                                int newCap = Math.max(accum.length * 2, totalShorts + len + 44100 * 2 * 30);
+                                accum = Arrays.copyOf(accum, newCap);
+                            }
+                            System.arraycopy(output.getBuffer(), 0, accum, totalShorts, len);
+                            totalShorts += len;
+                        }
+                    }
+                } catch (Exception decodeEx) {
+                    // Ignorar frame corrupto individual (ej. metadatos o carátula al final del archivo)
+                } finally {
+                    bitstream.closeFrame();
+                }
+            }
+
+            if (totalShorts == 0 || channels <= 0 || sampleRate <= 0) {
+                return null;
+            }
+
+            int validChannels = Math.min(2, Math.max(1, channels));
+            ShortBuffer pcm = MemoryUtil.memAllocShort(totalShorts);
+            pcm.put(accum, 0, totalShorts).flip();
+            int totalSamples = totalShorts / validChannels;
+            return new DecodedAudio(pcm, validChannels, sampleRate, totalSamples, false);
+        } catch (Exception e) {
+            System.err.println("[VSRCraft] Error decodificando MP3 (" + resourcePath + "): " + e.getMessage());
+            return null;
+        } finally {
+            if (bitstream != null) {
+                try {
+                    bitstream.close();
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    private static DecodedAudio decodeWavBytes(byte[] rawBytes, String resourcePath) {
+        try (AudioInputStream rawStream = AudioSystem.getAudioInputStream(new ByteArrayInputStream(rawBytes))) {
+            AudioFormat baseFormat = rawStream.getFormat();
+            int channels = Math.min(2, Math.max(1, baseFormat.getChannels()));
+            float sampleRate = baseFormat.getSampleRate() > 0 ? baseFormat.getSampleRate() : 44100f;
+
+            AudioFormat targetFormat = new AudioFormat(
+                    AudioFormat.Encoding.PCM_SIGNED,
+                    sampleRate,
+                    16,
+                    channels,
+                    channels * 2,
+                    sampleRate,
+                    false
+            );
+
+            try (AudioInputStream pcmStream = AudioSystem.getAudioInputStream(targetFormat, rawStream)) {
+                byte[] pcmBytes = pcmStream.readAllBytes();
+                int totalShorts = pcmBytes.length / 2;
+                if (totalShorts == 0) return null;
+
+                ShortBuffer pcm = MemoryUtil.memAllocShort(totalShorts);
+                ShortBuffer view = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+                pcm.put(view).flip();
+                int totalSamples = totalShorts / channels;
+                return new DecodedAudio(pcm, channels, Math.round(sampleRate), totalSamples, false);
+            }
+        } catch (Exception e) {
+            System.err.println("[VSRCraft] Error decodificando WAV (" + resourcePath + "): " + e.getMessage());
+            return null;
+        }
+    }
+
     private static String resolveResourcePath(SoundEvent sound) {
         if (sound == null) return "/assets/vsrcraft/sounds/music/whatsup.ogg";
         String path = sound.location().getPath();
         if (path.startsWith("music.")) {
             String trackName = path.substring("music.".length());
-            return "/assets/vsrcraft/sounds/music/" + trackName + ".ogg";
+            String oggPath = "/assets/vsrcraft/sounds/music/" + trackName + ".ogg";
+            if (AudioManager.class.getResource(oggPath) != null) {
+                return oggPath;
+            }
+            String mp3Path = "/assets/vsrcraft/sounds/music/" + trackName + ".mp3";
+            if (AudioManager.class.getResource(mp3Path) != null) {
+                return mp3Path;
+            }
+            return oggPath;
         }
         return "/assets/vsrcraft/sounds/" + path.replace('.', '/') + ".ogg";
     }
