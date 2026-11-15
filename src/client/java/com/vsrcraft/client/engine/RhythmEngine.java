@@ -6,7 +6,9 @@ import com.vsrcraft.client.domain.Judgement;
 import com.vsrcraft.client.domain.Note;
 import com.vsrcraft.client.domain.ScoreTracker;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Motor central de ritmo, juicios y supervivencia de VSRCraft.
@@ -15,10 +17,13 @@ import java.util.Arrays;
  * - Barra de vida lateral (HP) y condición de fallo (Stage Failed) según el HPDrainRate del beatmap.
  */
 public class RhythmEngine {
+    public record HitEvent(int lane, Judgement judgement) {}
+
     private final Beatmap beatmap;
     private final ScoreTracker scoreTracker;
     private final int keyCount;
     private final Note[] activeHolds;
+    private final List<HitEvent> pendingVisualEvents = new ArrayList<>();
     private Judgement lastJudgement = null;
 
     // Sistema de Vida (HP) y Fallo (Fail Condition)
@@ -37,6 +42,7 @@ public class RhythmEngine {
         this.hp = 100.0f;
         this.isFailed = false;
         this.lastJudgement = null;
+        this.pendingVisualEvents.clear();
         Arrays.fill(this.activeHolds, null);
         for (Note note : beatmap.getNotes()) {
             note.setHit(false);
@@ -80,6 +86,7 @@ public class RhythmEngine {
                     }
                     this.lastJudgement = Judgement.MISS;
                     this.scoreTracker.registerJudgement(Judgement.MISS);
+                    this.pendingVisualEvents.add(new HitEvent(note.getLane(), Judgement.MISS));
                     applyHpJudgement(Judgement.MISS);
                 }
             }
@@ -95,6 +102,7 @@ public class RhythmEngine {
                     this.activeHolds[lane] = null;
                     this.lastJudgement = Judgement.MARVELOUS;
                     this.scoreTracker.registerJudgement(Judgement.MARVELOUS);
+                    this.pendingVisualEvents.add(new HitEvent(lane, Judgement.MARVELOUS));
                     applyHpJudgement(Judgement.MARVELOUS);
                 }
             }
@@ -122,6 +130,7 @@ public class RhythmEngine {
             Judgement judgement = Judgement.fromDelta(minDelta);
             this.lastJudgement = judgement;
             this.scoreTracker.registerJudgement(judgement);
+            this.pendingVisualEvents.add(new HitEvent(lane, judgement));
             applyHpJudgement(judgement);
 
             // Si es una nota HOLD y no se falló, entra en estado HOLDING activo
@@ -152,6 +161,7 @@ public class RhythmEngine {
                     holdNote.setHoldState(Note.HoldState.DROPPED);
                     this.lastJudgement = Judgement.MISS;
                     this.scoreTracker.registerJudgement(Judgement.MISS);
+                    this.pendingVisualEvents.add(new HitEvent(lane, Judgement.MISS));
                     applyHpJudgement(Judgement.MISS);
                     return Judgement.MISS;
                 } else {
@@ -161,6 +171,7 @@ public class RhythmEngine {
                     Judgement tailJudgement = Judgement.fromDelta(absDelta);
                     this.lastJudgement = tailJudgement;
                     this.scoreTracker.registerJudgement(tailJudgement);
+                    this.pendingVisualEvents.add(new HitEvent(lane, tailJudgement));
                     applyHpJudgement(tailJudgement);
                     return tailJudgement;
                 }
@@ -168,6 +179,15 @@ public class RhythmEngine {
         }
 
         return null;
+    }
+
+    public List<HitEvent> drainVisualEvents() {
+        if (this.pendingVisualEvents.isEmpty()) {
+            return List.of();
+        }
+        List<HitEvent> events = new ArrayList<>(this.pendingVisualEvents);
+        this.pendingVisualEvents.clear();
+        return events;
     }
 
     public boolean isLaneHolding(int lane) {

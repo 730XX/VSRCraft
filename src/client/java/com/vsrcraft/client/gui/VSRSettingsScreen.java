@@ -350,6 +350,16 @@ public class VSRSettingsScreen extends Screen {
                 }
         ).bounds(x, startY + (row++ * spacing), w, 20).build();
         this.addRenderableWidget(laneGlowToggle);
+
+        // Toggle: Efectos de Golpe (Voxel Sparks)
+        Button hitEffectsToggle = Button.builder(
+                getHitEffectsToggleText(settings.enableHitEffects),
+                btn -> {
+                    settings.enableHitEffects = !settings.enableHitEffects;
+                    btn.setMessage(getHitEffectsToggleText(settings.enableHitEffects));
+                }
+        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        this.addRenderableWidget(hitEffectsToggle);
     }
 
     private void initKeybindsTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
@@ -402,6 +412,8 @@ public class VSRSettingsScreen extends Screen {
         s.noteHeight = 12;
         s.laneAlpha = 0.8f;
         s.enableLaneGlow = false;
+        s.enableLaneGlow = false;
+        s.enableHitEffects = true;
         s.backgroundDim = 0.6f;
         s.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
         s.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
@@ -434,6 +446,10 @@ public class VSRSettingsScreen extends Screen {
 
     private static Component getLaneGlowToggleText(boolean enabled) {
         return Component.literal("Hit Glow de Carriles: " + (enabled ? "§aACTIVADO" : "§cDESACTIVADO"));
+    }
+
+    private static Component getHitEffectsToggleText(boolean enabled) {
+        return Component.literal("Chispas de Golpe (Sparks): " + (enabled ? "§aACTIVADAS" : "§cDESACTIVADAS"));
     }
 
     @Override

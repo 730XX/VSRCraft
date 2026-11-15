@@ -50,6 +50,7 @@ public class VSRCraftSettings {
     // 3. Estética / Pista
     public float laneAlpha = 0.8f;         // Opacidad de pista (0.0 = transparente, 1.0 = opaco)
     public boolean enableLaneGlow = false; // Hit glow al presionar carril
+    public boolean enableHitEffects = true; // Chispas cúbicas (Voxel Sparks) al golpear notas
     public float backgroundDim = 0.6f;     // Oscurecimiento de pantalla completa (0.0 = nada, 1.0 = negro total)
 
     // 4. Teclas / Keybinds (4K por defecto: D, F, J, K | 7K: S, D, F, ESPACIO, J, K, L)

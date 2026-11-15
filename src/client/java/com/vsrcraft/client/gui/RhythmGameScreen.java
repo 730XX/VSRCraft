@@ -9,6 +9,7 @@ import com.vsrcraft.client.domain.BeatmapRepository;
 import com.vsrcraft.client.domain.Judgement;
 import com.vsrcraft.client.domain.ScoreTracker;
 import com.vsrcraft.client.engine.RhythmEngine;
+import com.vsrcraft.client.gui.renderer.HitEffectRenderer;
 import com.vsrcraft.client.gui.renderer.JudgementHudRenderer;
 import com.vsrcraft.client.gui.renderer.LaneRenderer;
 import com.vsrcraft.client.gui.renderer.NoteRenderer;
@@ -45,6 +46,7 @@ public class RhythmGameScreen extends Screen {
     private boolean clearTriggered = false;
     private boolean transitioningToResults = false;
     private final ScreenTransition transition = new ScreenTransition(280L);
+    private final HitEffectRenderer hitEffects = new HitEffectRenderer();
 
     // Botones interactivos en pantalla de fallo
     private Button retryButton;
@@ -129,6 +131,7 @@ public class RhythmGameScreen extends Screen {
         this.failTriggered = false;
         this.clearTriggered = false;
         this.transitioningToResults = false;
+        this.hitEffects.clear();
         this.engine.start(0);
         AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
     }
@@ -211,6 +214,19 @@ public class RhythmGameScreen extends Screen {
 
         // 2. Render de notas cayendo (aplica velocidad, grosor y hit position configurados)
         NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount);
+
+        // 2b. Efectos de golpe "Voxel Sparks" (chispas cúbicas debajo de la línea de impacto)
+        if (!isPaused && !engine.isFailed()) {
+            for (RhythmEngine.HitEvent ev : engine.drainVisualEvents()) {
+                this.hitEffects.spawnHitEffect(ev.lane(), ev.judgement(), boardStartX, hitLineY);
+            }
+            for (int lane = 0; lane < keyCount; lane++) {
+                if (engine.isLaneHolding(lane)) {
+                    this.hitEffects.spawnHoldTick(lane, boardStartX, hitLineY);
+                }
+            }
+        }
+        this.hitEffects.render(guiGraphics, boardStartX, hitLineY, this.height, keyCount);
 
         // 3. Render de información (Score a la izquierda, Combo y Juicio al medio)
         JudgementHudRenderer.renderHud(guiGraphics, this.font, engine.getScoreTracker(), engine.getLastJudgement(), boardStartX, hitLineY, this.width, this.height);
