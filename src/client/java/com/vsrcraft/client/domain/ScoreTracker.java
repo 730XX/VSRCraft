@@ -4,13 +4,17 @@ import java.util.EnumMap;
 import java.util.Map;
 
 public class ScoreTracker {
+    public static final int MAX_SCORE = 1_000_000;
+
+    private double rawScore = 0.0;
     private int score = 0;
     private int combo = 0;
     private int maxCombo = 0;
+    private int totalJudgementUnits = 1;
     private final Map<Judgement, Integer> judgementCounts = new EnumMap<>(Judgement.class);
 
     public ScoreTracker() {
-        reset();
+        reset(1);
     }
 
     public void registerJudgement(Judgement judgement) {
@@ -23,11 +27,19 @@ public class ScoreTracker {
             if (combo > maxCombo) {
                 maxCombo = combo;
             }
-            score += judgement.getScoreValue();
+            double perJudgementMax = (double) MAX_SCORE / Math.max(1, totalJudgementUnits);
+            rawScore += perJudgementMax * judgement.getScoreWeight();
+            score = (int) Math.min(MAX_SCORE, Math.round(rawScore));
         }
     }
 
     public void reset() {
+        reset(this.totalJudgementUnits);
+    }
+
+    public void reset(int totalJudgementUnits) {
+        this.totalJudgementUnits = Math.max(1, totalJudgementUnits);
+        rawScore = 0.0;
         score = 0;
         combo = 0;
         maxCombo = 0;

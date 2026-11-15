@@ -35,10 +35,11 @@ public class RhythmEngine {
         this.scoreTracker = new ScoreTracker();
         this.keyCount = beatmap.getKeyCount();
         this.activeHolds = new Note[this.keyCount];
+        this.scoreTracker.reset(computeTotalJudgementUnits(beatmap));
     }
 
     public void start(long ignored) {
-        this.scoreTracker.reset();
+        this.scoreTracker.reset(computeTotalJudgementUnits(this.beatmap));
         this.hp = 100.0f;
         this.isFailed = false;
         this.lastJudgement = null;
@@ -49,6 +50,18 @@ public class RhythmEngine {
             note.setMissed(false);
             note.setHoldState(Note.HoldState.NONE);
         }
+    }
+
+    private static int computeTotalJudgementUnits(Beatmap beatmap) {
+        int units = 0;
+        for (Note note : beatmap.getNotes()) {
+            if (note.getType() == Note.Type.HOLD && note.getDurationMs() > 0) {
+                units += 2; // Cabeza + cola del Hold
+            } else {
+                units += 1;
+            }
+        }
+        return Math.max(1, units);
     }
 
     private void applyHpJudgement(Judgement judgement) {

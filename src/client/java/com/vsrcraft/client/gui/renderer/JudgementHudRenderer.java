@@ -8,7 +8,7 @@ import net.minecraft.client.gui.GuiGraphics;
 public class JudgementHudRenderer {
     public static void renderHud(GuiGraphics graphics, Font font, ScoreTracker tracker, Judgement lastJudgement, int boardStartX, int hitLineY, int screenWidth, int screenHeight) {
         // 1. SCORE arriba en el borde izquierdo (debajo del título del mapa)
-        graphics.drawString(font, "SCORE: " + tracker.getScore(), 12, 22, 0xFFFFFFFF, true);
+        graphics.drawString(font, String.format(java.util.Locale.ROOT, "SCORE: %07d", tracker.getScore()), 12, 22, 0xFFFFFFFF, true);
 
         // 2. COMBO en el centro de la pantalla, un poco arriba
         int combo = tracker.getCombo();
