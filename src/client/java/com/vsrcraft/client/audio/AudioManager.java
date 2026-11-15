@@ -77,10 +77,19 @@ public class AudioManager {
     private static boolean musicPaused = false;
     private static boolean musicFinished = false;
 
-    // Estado para el Preview de audio en el Selector de Canciones
+    // Estado para el Preview de audio en el Selector de Canciones (Fade-In suave de 1.8s)
+    private static final long PREVIEW_INITIAL_DELAY_MS = 200L;
+    private static final double PREVIEW_FADE_IN_MS = 1800.0;
     private static boolean pendingPreview = false;
     private static long pendingPreviewOffsetMs = 0L;
+    private static long previewRequestNano = 0L;
+    private static long previewFadeStartNano = 0L;
     private static boolean previewMode = false;
+
+    // Estado de Fade-Out al salir de pantallas
+    private static boolean fadeOutActive = false;
+    private static long fadeOutStartNano = 0L;
+    private static double fadeOutDurationMs = 250.0;
 
     // Estado del Reloj Maestro Híbrido (OpenAL Sample Offset + Interpolación NanoTime)
     private static int lastSampleOffset = -1;
@@ -128,6 +137,7 @@ public class AudioManager {
             musicFinished = false;
             pendingPreview = false;
             previewMode = false;
+            fadeOutActive = false;
             lastSampleOffset = -1;
             lastHardwareTimeMs = 0.0;
             lastReturnedTimeMs = 0.0;
@@ -155,33 +165,59 @@ public class AudioManager {
         previewMode = true;
         pendingPreview = true;
         pendingPreviewOffsetMs = Math.max(0L, previewTimeMs);
+        previewRequestNano = System.nanoTime();
+        fadeOutActive = false;
     }
 
     /**
-     * Llamado en cada fotograma de SongSelectScreen para arrancar el preview apenas termine la decodificación asíncrona.
+     * Inicia un desvanecimiento suave (Fade-Out) de la música actual antes de cambiar de pantalla.
+     */
+    public static synchronized void fadeOutMusic(long durationMs) {
+        if (!musicPlaying || musicSourceId == 0) return;
+        fadeOutActive = true;
+        fadeOutStartNano = System.nanoTime();
+        fadeOutDurationMs = Math.max(1.0, durationMs);
+    }
+
+    /**
+     * Actualiza el Fade-In del preview y cualquier Fade-Out activo en cada fotograma.
      */
     public static synchronized void updatePreview() {
-        if (!pendingPreview) return;
-        if (!ensureMusicReady() || musicSourceId == 0) return;
+        if (pendingPreview) {
+            double waitedMs = (System.nanoTime() - previewRequestNano) / 1_000_000.0;
+            if (waitedMs < PREVIEW_INITIAL_DELAY_MS) {
+                return;
+            }
+            if (!ensureMusicReady() || musicSourceId == 0) return;
 
-        pendingPreview = false;
-        previewMode = true;
-        updateMusicVolume();
-        AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_TRUE);
-        AL10.alSourceRewind(musicSourceId);
+            pendingPreview = false;
+            previewMode = true;
+            previewFadeStartNano = System.nanoTime();
 
-        float seekSeconds = pendingPreviewOffsetMs / 1000.0f;
-        if (musicDurationMs > 0 && pendingPreviewOffsetMs >= musicDurationMs) {
-            seekSeconds = (musicDurationMs * 0.35f) / 1000.0f;
+            AL10.alSourcef(musicSourceId, AL10.AL_GAIN, 0.0f);
+            AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_TRUE);
+            AL10.alSourceRewind(musicSourceId);
+
+            float seekSeconds = pendingPreviewOffsetMs / 1000.0f;
+            if (musicDurationMs > 0 && pendingPreviewOffsetMs >= musicDurationMs) {
+                seekSeconds = (musicDurationMs * 0.35f) / 1000.0f;
+            }
+            if (seekSeconds > 0.0f) {
+                AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, seekSeconds);
+            }
+
+            AL10.alSourcePlay(musicSourceId);
+            musicPlaying = true;
+            musicPaused = false;
+            musicFinished = false;
+            return;
         }
-        if (seekSeconds > 0.0f) {
-            AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, seekSeconds);
-        }
 
-        AL10.alSourcePlay(musicSourceId);
-        musicPlaying = true;
-        musicPaused = false;
-        musicFinished = false;
+        if (musicPlaying && musicSourceId != 0 && !musicPaused) {
+            if (previewMode || fadeOutActive) {
+                updateMusicVolume();
+            }
+        }
     }
 
     public static synchronized boolean ensureMusicReady() {
@@ -239,6 +275,7 @@ public class AudioManager {
 
         previewMode = false;
         pendingPreview = false;
+        fadeOutActive = false;
         updateMusicVolume();
         AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_FALSE);
         AL10.alSourceRewind(musicSourceId);
@@ -275,7 +312,20 @@ public class AudioManager {
         if (musicSourceId != 0) {
             float baseVol = getEffectiveVolume(SoundSource.MASTER);
             float customVol = VSRCraftSettings.get().musicVolume; // Por defecto 50%
-            AL10.alSourcef(musicSourceId, AL10.AL_GAIN, baseVol * customVol);
+            float fadeMultiplier = 1.0f;
+
+            if (previewMode && previewFadeStartNano > 0L) {
+                double fadeElapsedMs = (System.nanoTime() - previewFadeStartNano) / 1_000_000.0;
+                float t = (float) Math.max(0.0, Math.min(1.0, fadeElapsedMs / PREVIEW_FADE_IN_MS));
+                fadeMultiplier *= t * t * (3.0f - 2.0f * t);
+            }
+            if (fadeOutActive) {
+                double outElapsedMs = (System.nanoTime() - fadeOutStartNano) / 1_000_000.0;
+                float t = (float) Math.max(0.0, Math.min(1.0, outElapsedMs / fadeOutDurationMs));
+                fadeMultiplier *= (1.0f - (t * t * (3.0f - 2.0f * t)));
+            }
+
+            AL10.alSourcef(musicSourceId, AL10.AL_GAIN, baseVol * customVol * fadeMultiplier);
         }
     }
 
@@ -391,6 +441,8 @@ public class AudioManager {
         musicFinished = false;
         pendingPreview = false;
         previewMode = false;
+        fadeOutActive = false;
+        previewFadeStartNano = 0L;
         lastSampleOffset = -1;
         lastHardwareTimeMs = 0.0;
         lastReturnedTimeMs = 0.0;

@@ -76,6 +76,7 @@ public class SongSelectScreen extends Screen {
     private EditBox searchBox;
     private Button playButton;
     private boolean transitioningToSubScreen = false;
+    private final ScreenTransition transition = new ScreenTransition(300L);
 
     public SongSelectScreen() {
         this(null);
@@ -100,6 +101,7 @@ public class SongSelectScreen extends Screen {
     protected void init() {
         super.init();
         this.transitioningToSubScreen = false;
+        this.transition.startEnter(260L);
 
         int margin = 10;
         int topBarH = 28;
@@ -270,16 +272,17 @@ public class SongSelectScreen extends Screen {
     }
 
     private void openSettings() {
+        if (this.transition.isExiting() || this.minecraft == null) return;
         this.transitioningToSubScreen = true;
-        if (this.minecraft != null) {
-            this.minecraft.setScreen(new VSRSettingsScreen(this));
-        }
+        this.transition.startExit(180L, () -> this.minecraft.setScreen(new VSRSettingsScreen(this)));
     }
 
     private void startSelectedBeatmap() {
-        if (this.selectedBeatmap == null || this.minecraft == null) return;
+        if (this.selectedBeatmap == null || this.minecraft == null || this.transition.isExiting()) return;
         this.transitioningToSubScreen = true;
-        this.minecraft.setScreen(new RhythmGameScreen(this.selectedBeatmap));
+        AudioManager.fadeOutMusic(220L);
+        final Beatmap targetMap = this.selectedBeatmap;
+        this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap)));
     }
 
     private void triggerPreviewForSelected() {
@@ -351,6 +354,9 @@ public class SongSelectScreen extends Screen {
 
         // 6. Widgets
         super.render(g, mouseX, mouseY, partialTick);
+
+        // 7. Transición suave (Fade-In / Fade-Out)
+        this.transition.renderOverlay(g, this.width, this.height);
     }
 
     private void renderLeftDetailsColumn(GuiGraphics g) {
@@ -665,6 +671,7 @@ public class SongSelectScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (this.transition.isExiting()) return true;
         int key = event.key();
 
         if (key == GLFW.GLFW_KEY_UP) {
@@ -760,6 +767,16 @@ public class SongSelectScreen extends Screen {
             case "C" -> 0xFFAB47BC;
             default -> 0xFFEF5350;
         };
+    }
+
+    @Override
+    public void onClose() {
+        if (this.transition.isExiting()) return;
+        AudioManager.fadeOutMusic(180L);
+        this.transition.startExit(200L, () -> {
+            AudioManager.stopMusic();
+            super.onClose();
+        });
     }
 
     @Override

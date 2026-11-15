@@ -174,6 +174,24 @@ public class RhythmEngine {
         return lane >= 0 && lane < keyCount && this.activeHolds[lane] != null && this.activeHolds[lane].isHolding();
     }
 
+    public boolean isCleared(long currentSongTimeMs) {
+        if (this.isFailed || this.beatmap.getNotes().isEmpty()) {
+            return false;
+        }
+        if (currentSongTimeMs < this.beatmap.getDurationMs() + 1500L) {
+            return false;
+        }
+        for (Note note : this.beatmap.getNotes()) {
+            if (!note.isHit() && !note.isMissed()) {
+                return false;
+            }
+            if (note.getType() == Note.Type.HOLD && note.getDurationMs() > 0 && note.isHolding()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public float getHp() { return hp; }
     public boolean isFailed() { return isFailed; }
     public Beatmap getBeatmap() { return beatmap; }

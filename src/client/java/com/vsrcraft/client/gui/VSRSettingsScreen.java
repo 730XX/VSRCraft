@@ -39,6 +39,7 @@ public class VSRSettingsScreen extends Screen {
 
     private final Screen parentScreen;
     private Tab currentTab = Tab.AUDIO;
+    private final ScreenTransition transition = new ScreenTransition(220L);
 
     // Estado de reasignación de teclas
     private int listeningLane = -1;
@@ -482,6 +483,9 @@ public class VSRSettingsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        if (this.parentScreen instanceof SongSelectScreen) {
+            AudioManager.updatePreview();
+        }
         // Fondo general estilizado
         g.fillGradient(0, 0, this.width, this.height, 0xE60B0E14, 0xF206080C);
 
@@ -503,6 +507,8 @@ public class VSRSettingsScreen extends Screen {
         }
 
         super.render(g, mouseX, mouseY, partialTick);
+
+        this.transition.renderOverlay(g, this.width, this.height);
     }
 
     private void renderLivePreviewPanel(GuiGraphics g) {
@@ -622,9 +628,12 @@ public class VSRSettingsScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (this.transition.isExiting()) return;
         VSRCraftSettings.save();
-        if (this.minecraft != null) {
-            this.minecraft.setScreen(this.parentScreen);
-        }
+        this.transition.startExit(180L, () -> {
+            if (this.minecraft != null) {
+                this.minecraft.setScreen(this.parentScreen);
+            }
+        });
     }
 }

@@ -39,9 +39,12 @@ public class RhythmGameScreen extends Screen {
     private boolean isPaused = false;
     private long pausedNanoTime = 0L;
 
-    // Barra de Vida / HP
+    // Barra de Vida / HP y Resultados
     private float smoothHp = 100.0f;
     private boolean failTriggered = false;
+    private boolean clearTriggered = false;
+    private boolean transitioningToResults = false;
+    private final ScreenTransition transition = new ScreenTransition(280L);
 
     // Botones interactivos en pantalla de fallo
     private Button retryButton;
@@ -124,6 +127,8 @@ public class RhythmGameScreen extends Screen {
         this.musicStarted = false;
         this.smoothHp = 100.0f;
         this.failTriggered = false;
+        this.clearTriggered = false;
+        this.transitioningToResults = false;
         this.engine.start(0);
         AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
     }
@@ -236,7 +241,30 @@ public class RhythmGameScreen extends Screen {
                 if (this.exitButton != null) this.exitButton.visible = true;
             }
             renderFailedOverlay(guiGraphics);
+        } else if (!this.isPaused && !this.clearTriggered && engine.isCleared(currentSongTimeLong)) {
+            // 6. Canción completada con éxito -> Transición a Pantalla de Resultados (STAGE CLEARED!)
+            this.clearTriggered = true;
+            this.transitioningToResults = true;
+
+            ScoreTracker tracker = this.engine.getScoreTracker();
+            VSRCraftSettings.BeatmapRecord prevRecord = VSRCraftSettings.get().getPersonalBest(this.engine.getBeatmap().getId());
+            int prevBestScore = (prevRecord != null) ? prevRecord.bestScore : 0;
+            boolean isNewRecord = tracker.getScore() > prevBestScore && tracker.getScore() > 0;
+
+            saveSessionRecordIfValid();
+            AudioManager.fadeOutMusic(320L);
+            this.transition.startExit(340L, () -> {
+                AudioManager.stopMusic();
+                if (this.minecraft != null) {
+                    this.minecraft.setScreen(new ResultsScreen(this.engine.getBeatmap(), tracker, isNewRecord, prevBestScore));
+                }
+            });
         }
+
+        if (this.transition.isExiting()) {
+            AudioManager.updatePreview();
+        }
+        this.transition.renderOverlay(guiGraphics, this.width, this.height);
     }
 
     private void renderHpBar(GuiGraphics g, int barX, int hitLineY) {
@@ -393,17 +421,21 @@ public class RhythmGameScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (this.transition.isExiting()) return;
         saveSessionRecordIfValid();
-        AudioManager.stopMusic();
-        if (this.minecraft != null) {
-            this.minecraft.setScreen(new SongSelectScreen(this.engine.getBeatmap()));
-        }
+        AudioManager.fadeOutMusic(200L);
+        this.transition.startExit(220L, () -> {
+            AudioManager.stopMusic();
+            if (this.minecraft != null) {
+                this.minecraft.setScreen(new SongSelectScreen(this.engine.getBeatmap()));
+            }
+        });
     }
 
     @Override
     public void removed() {
         super.removed();
-        if (!this.isPaused) {
+        if (!this.isPaused && !this.transitioningToResults && !this.transition.isExiting()) {
             saveSessionRecordIfValid();
             AudioManager.stopMusic();
         }
