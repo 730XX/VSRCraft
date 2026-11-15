@@ -76,6 +76,7 @@ public class SongSelectScreen extends Screen {
     private EditBox searchBox;
     private Button playButton;
     private boolean transitioningToSubScreen = false;
+    private boolean hasTriggeredInitialPreview = false;
     private final ScreenTransition transition = new ScreenTransition(300L);
 
     public SongSelectScreen() {
@@ -287,7 +288,9 @@ public class SongSelectScreen extends Screen {
 
     private void triggerPreviewForSelected() {
         if (this.selectedBeatmap != null && this.selectedBeatmap.getAudioResourcePath() != null && !this.selectedBeatmap.getAudioResourcePath().isEmpty()) {
-            AudioManager.requestPreview(this.selectedBeatmap.getAudioResourcePath(), this.selectedBeatmap.getPreviewTimeMs());
+            boolean isInitial = !this.hasTriggeredInitialPreview;
+            this.hasTriggeredInitialPreview = true;
+            AudioManager.requestPreview(this.selectedBeatmap.getAudioResourcePath(), this.selectedBeatmap.getPreviewTimeMs(), isInitial);
         } else {
             AudioManager.stopMusic();
         }
@@ -771,12 +774,8 @@ public class SongSelectScreen extends Screen {
 
     @Override
     public void onClose() {
-        if (this.transition.isExiting()) return;
-        AudioManager.fadeOutMusic(180L);
-        this.transition.startExit(200L, () -> {
-            AudioManager.stopMusic();
-            super.onClose();
-        });
+        AudioManager.stopMusic();
+        super.onClose();
     }
 
     @Override

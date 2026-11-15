@@ -77,11 +77,15 @@ public class AudioManager {
     private static boolean musicPaused = false;
     private static boolean musicFinished = false;
 
-    // Estado para el Preview de audio en el Selector de Canciones (Fade-In suave de 1.8s)
+    // Estado para el Preview de audio en el Selector de Canciones (Fade-In suave al abrir, rápido al cambiar)
     private static final long PREVIEW_INITIAL_DELAY_MS = 200L;
-    private static final double PREVIEW_FADE_IN_MS = 1800.0;
+    private static final long PREVIEW_SWITCH_DELAY_MS = 40L;
+    private static final double PREVIEW_INITIAL_FADE_IN_MS = 1800.0;
+    private static final double PREVIEW_SWITCH_FADE_IN_MS = 450.0;
     private static boolean pendingPreview = false;
     private static long pendingPreviewOffsetMs = 0L;
+    private static long currentPreviewDelayMs = PREVIEW_INITIAL_DELAY_MS;
+    private static double currentPreviewFadeInMs = PREVIEW_INITIAL_FADE_IN_MS;
     private static long previewRequestNano = 0L;
     private static long previewFadeStartNano = 0L;
     private static boolean previewMode = false;
@@ -154,6 +158,13 @@ public class AudioManager {
      * Solicita reproducir el preview de una canción en el selector de beatmaps (sin bloquear el hilo de render).
      */
     public static synchronized void requestPreview(String resourcePath, long previewTimeMs) {
+        requestPreview(resourcePath, previewTimeMs, true);
+    }
+
+    /**
+     * Solicita reproducir el preview con fade-in largo al abrir el selector (1.8s) o rápido al cambiar de canción (~0.45s).
+     */
+    public static synchronized void requestPreview(String resourcePath, long previewTimeMs, boolean isInitialOpen) {
         if (resourcePath == null || resourcePath.isEmpty()) return;
 
         // Si ya está sonando o cargando exactamente este mismo preview, no reiniciarlo
@@ -165,6 +176,8 @@ public class AudioManager {
         previewMode = true;
         pendingPreview = true;
         pendingPreviewOffsetMs = Math.max(0L, previewTimeMs);
+        currentPreviewDelayMs = isInitialOpen ? PREVIEW_INITIAL_DELAY_MS : PREVIEW_SWITCH_DELAY_MS;
+        currentPreviewFadeInMs = isInitialOpen ? PREVIEW_INITIAL_FADE_IN_MS : PREVIEW_SWITCH_FADE_IN_MS;
         previewRequestNano = System.nanoTime();
         fadeOutActive = false;
     }
@@ -185,7 +198,7 @@ public class AudioManager {
     public static synchronized void updatePreview() {
         if (pendingPreview) {
             double waitedMs = (System.nanoTime() - previewRequestNano) / 1_000_000.0;
-            if (waitedMs < PREVIEW_INITIAL_DELAY_MS) {
+            if (waitedMs < currentPreviewDelayMs) {
                 return;
             }
             if (!ensureMusicReady() || musicSourceId == 0) return;
@@ -316,7 +329,7 @@ public class AudioManager {
 
             if (previewMode && previewFadeStartNano > 0L) {
                 double fadeElapsedMs = (System.nanoTime() - previewFadeStartNano) / 1_000_000.0;
-                float t = (float) Math.max(0.0, Math.min(1.0, fadeElapsedMs / PREVIEW_FADE_IN_MS));
+                float t = (float) Math.max(0.0, Math.min(1.0, fadeElapsedMs / currentPreviewFadeInMs));
                 fadeMultiplier *= t * t * (3.0f - 2.0f * t);
             }
             if (fadeOutActive) {
