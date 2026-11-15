@@ -28,17 +28,29 @@ public class HitEffectRenderer {
         double lifeMs;
     }
 
+    private static class RadialGlow {
+        int centerX;
+        int centerY;
+        float maxRadius;
+        int rgb;
+        long spawnNano;
+        double lifeMs;
+    }
+
     private static final int MAX_SPARKS = 140;
+    private static final int MAX_GLOWS = 32;
     private static final double MISS_FLASH_DURATION_MS = 180.0;
     private static final long HOLD_SPARK_INTERVAL_NS = 75_000_000L;
 
     private final List<VoxelSpark> sparks = new ArrayList<>(64);
+    private final List<RadialGlow> glows = new ArrayList<>(16);
     private final long[] missFlashNano = new long[8];
     private final long[] lastHoldSparkNano = new long[8];
     private long lastUpdateNano = System.nanoTime();
 
     public void clear() {
         this.sparks.clear();
+        this.glows.clear();
         for (int i = 0; i < this.missFlashNano.length; i++) {
             this.missFlashNano[i] = 0L;
             this.lastHoldSparkNano[i] = 0L;
@@ -70,6 +82,25 @@ public class HitEffectRenderer {
         int spawnY = hitLineY + 4;
         long now = System.nanoTime();
         ThreadLocalRandom rng = ThreadLocalRandom.current();
+
+        // Glow radial compacto del color del juicio centrado en el punto de impacto
+        if (this.glows.size() >= MAX_GLOWS) {
+            this.glows.remove(0);
+        }
+        RadialGlow glow = new RadialGlow();
+        glow.centerX = laneCenterX;
+        glow.centerY = hitLineY + 2;
+        glow.maxRadius = switch (judgement) {
+            case MARVELOUS -> 16.0f;
+            case PERFECT -> 14.0f;
+            case GREAT -> 12.0f;
+            case BAD -> 10.0f;
+            default -> 10.0f;
+        };
+        glow.rgb = pickSparkColor(judgement, 0);
+        glow.spawnNano = now;
+        glow.lifeMs = (judgement == Judgement.MARVELOUS) ? 180.0 : 150.0;
+        this.glows.add(glow);
 
         for (int i = 0; i < count; i++) {
             if (this.sparks.size() >= MAX_SPARKS) {
@@ -149,7 +180,23 @@ public class HitEffectRenderer {
             }
         }
 
-        // 2. Actualizar y renderizar chispas cúbicas (Voxel Sparks) debajo de la línea de impacto
+        // 2. Renderizar pequeños glows radiales del color del juicio
+        Iterator<RadialGlow> glowIt = this.glows.iterator();
+        while (glowIt.hasNext()) {
+            RadialGlow g = glowIt.next();
+            double elapsedMs = (now - g.spawnNano) / 1_000_000.0;
+            if (elapsedMs >= g.lifeMs) {
+                glowIt.remove();
+                continue;
+            }
+            float t = (float) (elapsedMs / g.lifeMs);
+            float easeOut = 1.0f - (1.0f - t) * (1.0f - t);
+            float currentRadius = g.maxRadius * (0.55f + 0.45f * easeOut);
+            float fade = (1.0f - t) * (1.0f - t);
+            drawRadialGlow(graphics, g.centerX, g.centerY, currentRadius, g.rgb, fade);
+        }
+
+        // 3. Actualizar y renderizar chispas cúbicas (Voxel Sparks) debajo de la línea de impacto
         Iterator<VoxelSpark> it = this.sparks.iterator();
         while (it.hasNext()) {
             VoxelSpark s = it.next();
@@ -170,6 +217,29 @@ public class HitEffectRenderer {
             if (py >= hitLineY + 2 && py < screenHeight) {
                 graphics.fill(px, py, px + s.size, py + s.size, (alpha << 24) | (s.rgb & 0x00FFFFFF));
             }
+        }
+    }
+
+    private static void drawRadialGlow(GuiGraphics g, int cx, int cy, float radius, int rgb, float fade) {
+        int steps = 4;
+        int rgbMask = rgb & 0x00FFFFFF;
+        // Capas concéntricas suaves para simular un glow radial sin texturas externas
+        for (int step = steps; step >= 1; step--) {
+            float frac = (float) step / (float) steps;
+            int r = Math.max(1, Math.round(radius * frac));
+            float layerAlpha = (1.0f - frac * 0.72f) * 0.24f * fade;
+            int alpha = Math.max(0, Math.min(255, Math.round(layerAlpha * 255.0f)));
+            if (alpha <= 1) continue;
+            int color = (alpha << 24) | rgbMask;
+            drawFilledDisc(g, cx, cy, r, color);
+        }
+    }
+
+    private static void drawFilledDisc(GuiGraphics g, int cx, int cy, int r, int color) {
+        int r2 = r * r;
+        for (int dy = -r; dy <= r; dy++) {
+            int dx = (int) Math.sqrt(r2 - dy * dy);
+            g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
         }
     }
 
