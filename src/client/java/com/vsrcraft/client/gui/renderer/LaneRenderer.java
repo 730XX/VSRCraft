@@ -43,8 +43,9 @@ public class LaneRenderer {
                 }
             }
         } else {
-            // Línea guía sutil detrás de los receptores de círculo/flecha
-            graphics.fill(boardStartX, hitCenterY, boardStartX + boardWidth, hitCenterY + 1, 0x33FFFFFF);
+            // Línea de juicio en la base inferior donde inician los receptores
+            int guideLineY = hitCenterY + receptorRadius;
+            graphics.fill(boardStartX, guideLineY, boardStartX + boardWidth, guideLineY + 2, 0x66FFFFFF);
             for (int i = 0; i < laneCount; i++) {
                 int laneCenterX = boardStartX + (i * laneWidth) + (laneWidth / 2);
                 boolean isPressed = lanePressed != null && i < lanePressed.length && lanePressed[i];

@@ -654,7 +654,8 @@ public class VSRSettingsScreen extends Screen {
         if (shape == VSRCraftSettings.NoteShape.BARS) {
             g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, LaneTheme.HIT_LINE);
         } else {
-            g.fill(boardStartX, hitCenterY, boardStartX + boardW, hitCenterY + 1, 0x33FFFFFF);
+            int guideLineY = hitCenterY + previewRadius;
+            g.fill(boardStartX, guideLineY, boardStartX + boardW, guideLineY + 2, 0x66FFFFFF);
             for (int lane = 0; lane < keyCount; lane++) {
                 int laneCenterX = boardStartX + (lane * laneW) + (laneW / 2);
                 if (shape == VSRCraftSettings.NoteShape.CIRCLES) {

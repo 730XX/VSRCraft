@@ -605,11 +605,6 @@ public class RhythmGameScreen extends Screen {
             return true;
         }
 
-        if (event.key() == GLFW.GLFW_KEY_O) {
-            openSettingsScreen();
-            return true;
-        }
-
         if (event.key() == GLFW.GLFW_KEY_F3) {
             VSRCraftSettings.get().scrollSpeed = Math.max(0.2f, VSRCraftSettings.get().scrollSpeed - 0.05f);
             VSRCraftSettings.save();
