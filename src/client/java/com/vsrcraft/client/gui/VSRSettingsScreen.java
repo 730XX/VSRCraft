@@ -666,9 +666,11 @@ public class VSRSettingsScreen extends Screen {
 
         // 2. Receptores / Línea de Impacto según el shape elegido
         VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
+        int noteH = VSRCraftSettings.get().noteHeight;
+        int halfNote = noteH / 2;
         int previewRadius = Math.max(5, Math.min((laneW - 6) / 2, 14));
         int hitCenterY = (shape == VSRCraftSettings.NoteShape.BARS)
-                ? (hitLineY + 1)
+                ? (hitLineY - halfNote)
                 : (hitLineY - previewRadius);
 
         if (shape == VSRCraftSettings.NoteShape.BARS) {
@@ -692,8 +694,6 @@ public class VSRSettingsScreen extends Screen {
         double currentPreviewTimeMs = loopElapsed;
 
         float scrollSpeed = VSRCraftSettings.get().scrollSpeed;
-        int noteH = VSRCraftSettings.get().noteHeight;
-        int halfNote = noteH / 2;
 
         List<Note> previewNotes = (keyCount == 4) ? this.previewNotes4K : this.previewNotes7K;
 

@@ -28,9 +28,9 @@ public class NoteRenderer {
         VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
         int lnCutMs = VSRCraftSettings.get().lnCutMs;
         int shapeRadius = Math.max(6, Math.min((laneWidth - 8) / 2, 18));
-        // En Círculos/Flechas, los receptores descansan encima de hitLineY, así que el punto 0ms es su centro.
+        // El punto 0ms descansa sobre hitLineY (en BARS, el borde inferior de la nota toca hitLineY)
         int hitCenterY = (shape == VSRCraftSettings.NoteShape.BARS)
-                ? (hitLineY + 2)
+                ? (hitLineY - halfNote)
                 : (hitLineY - shapeRadius);
 
         for (Note note : notes) {
