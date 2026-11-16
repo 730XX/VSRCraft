@@ -22,6 +22,9 @@ public class ReplayData {
     }
 
     public String beatmapId = "";
+    public String playerName = "";
+    public String osuBeatmapMd5 = "";
+    public int mods = 0;
     public int score = 0;
     public float accuracy = 0.0f;
     public int maxCombo = 0;
@@ -39,5 +42,16 @@ public class ReplayData {
         this.rank = rank;
         this.recordedAtMs = System.currentTimeMillis();
         this.events = (events != null) ? new ArrayList<>(events) : new ArrayList<>();
+    }
+
+    public boolean hasSpeedMod() {
+        return (mods & ((1 << 6) | (1 << 8) | (1 << 9))) != 0; // DT, HT, NC
+    }
+
+    public String getSpeedModLabel() {
+        if ((mods & (1 << 9)) != 0) return "NC";
+        if ((mods & (1 << 6)) != 0) return "DT";
+        if ((mods & (1 << 8)) != 0) return "HT";
+        return "";
     }
 }

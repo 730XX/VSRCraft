@@ -2,12 +2,15 @@ package com.vsrcraft.client.domain;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.vsrcraft.client.parser.OsrReplayParser;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  * Repositorio para guardar y cargar replays en .minecraft/vsrg_replays/.
@@ -30,6 +33,11 @@ public class ReplayRepository {
         if (beatmapId == null || beatmapId.isEmpty()) return false;
         File file = getReplayFile(beatmapId);
         return file.exists() && file.isFile() && file.length() > 0;
+    }
+
+    public static boolean hasReplay(Beatmap beatmap) {
+        if (beatmap == null) return false;
+        return hasReplay(beatmap.getId()) || findMatchingOsrFile(beatmap.getOsuMd5()) != null;
     }
 
     public static void saveBestReplay(ReplayData replay) {
@@ -63,5 +71,47 @@ public class ReplayRepository {
             System.err.println("[VSRCraft] Error cargando replay (" + beatmapId + "): " + e.getMessage());
         }
         return null;
+    }
+
+    public static ReplayData loadReplay(Beatmap beatmap) {
+        if (beatmap == null) return null;
+        ReplayData local = loadReplay(beatmap.getId());
+        if (local != null) {
+            return local;
+        }
+        File osrFile = findMatchingOsrFile(beatmap.getOsuMd5());
+        if (osrFile != null) {
+            try {
+                return OsrReplayParser.parse(osrFile.toPath(), beatmap.getKeyCount(), beatmap.getId());
+            } catch (Exception e) {
+                System.err.println("[VSRCraft] Error cargando .osr (" + osrFile.getName() + "): " + e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    public static File findMatchingOsrFile(String osuMd5) {
+        if (osuMd5 == null || osuMd5.isEmpty()) return null;
+        File dir = getReplaysDir();
+        if (!dir.exists() || !dir.isDirectory()) return null;
+        File[] files = dir.listFiles((d, name) -> name.toLowerCase(Locale.ROOT).endsWith(".osr"));
+        if (files == null) return null;
+        for (File file : files) {
+            try {
+                OsrReplayParser.OsrHeader header = OsrReplayParser.readHeader(file.toPath());
+                if (header.gameMode() == 3 && osuMd5.equalsIgnoreCase(header.beatmapMd5())) {
+                    return file;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    public static ReplayData loadOsrFile(Path osrPath, Beatmap targetBeatmap) throws Exception {
+        if (targetBeatmap == null) {
+            throw new IllegalArgumentException("No hay un beatmap destino para cargar el replay.");
+        }
+        return OsrReplayParser.parse(osrPath, targetBeatmap.getKeyCount(), targetBeatmap.getId());
     }
 }

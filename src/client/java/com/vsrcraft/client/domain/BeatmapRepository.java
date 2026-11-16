@@ -3,10 +3,12 @@ package com.vsrcraft.client.domain;
 import com.vsrcraft.client.parser.OsuBeatmapParser;
 import net.fabricmc.loader.api.FabricLoader;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -68,7 +70,7 @@ public class BeatmapRepository {
         for (BundledBeatmapEntry entry : BUNDLED_BEATMAPS) {
             try (InputStream stream = BeatmapRepository.class.getResourceAsStream(entry.osuResourcePath())) {
                 if (stream != null) {
-                    Beatmap map = OsuBeatmapParser.parse(stream, entry.audioResourcePath());
+                    Beatmap map = parseWithMd5(stream, entry.audioResourcePath());
                     if (!map.getNotes().isEmpty()) {
                         registerBeatmap(map, setMap);
                     }
@@ -126,7 +128,7 @@ public class BeatmapRepository {
 
     private static void loadExternalOsuFile(File osuFile, Map<String, BeatmapSet> setMap) {
         try (InputStream stream = new FileInputStream(osuFile)) {
-            Beatmap map = OsuBeatmapParser.parse(stream, "");
+            Beatmap map = parseWithMd5(stream, "");
             // Aceptar exclusivamente mapas de Mania (Mode: 3)
             if (map.getNotes().isEmpty() || map.getGameMode() != 3) {
                 return;
@@ -143,6 +145,30 @@ public class BeatmapRepository {
         } catch (Exception e) {
             System.err.println("[VSRCraft] Error leyendo beatmap externo " + osuFile.getName() + ": " + e.getMessage());
         }
+    }
+
+    private static Beatmap parseWithMd5(InputStream stream, String audioResourcePath) throws Exception {
+        byte[] bytes = stream.readAllBytes();
+        Beatmap map = OsuBeatmapParser.parse(new ByteArrayInputStream(bytes), audioResourcePath);
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        byte[] digest = md.digest(bytes);
+        StringBuilder hex = new StringBuilder(digest.length * 2);
+        for (byte b : digest) {
+            hex.append(String.format(Locale.ROOT, "%02x", b & 0xFF));
+        }
+        map.setOsuMd5(hex.toString());
+        return map;
+    }
+
+    public static Beatmap findByOsuMd5(String osuMd5) {
+        if (osuMd5 == null || osuMd5.isEmpty()) return null;
+        String target = osuMd5.toLowerCase(Locale.ROOT);
+        for (Beatmap map : getBeatmaps()) {
+            if (target.equalsIgnoreCase(map.getOsuMd5())) {
+                return map;
+            }
+        }
+        return null;
     }
 
     private static File resolveAudioFile(File parentDir, String audioFileName) {

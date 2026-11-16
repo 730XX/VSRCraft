@@ -23,6 +23,7 @@ public class Beatmap {
     private String audioResourcePath;
     private final long audioLeadInMs;
     private final long previewTimeMs;
+    private String osuMd5 = "";
     private final List<Note> notes;
 
     // Estadísticas cacheadas
@@ -172,5 +173,7 @@ public class Beatmap {
     public void setAudioResourcePath(String audioResourcePath) { this.audioResourcePath = audioResourcePath; }
     public long getAudioLeadInMs() { return audioLeadInMs; }
     public long getPreviewTimeMs() { return previewTimeMs; }
+    public String getOsuMd5() { return osuMd5; }
+    public void setOsuMd5(String osuMd5) { this.osuMd5 = osuMd5 != null ? osuMd5 : ""; }
     public List<Note> getNotes() { return notes; }
 }

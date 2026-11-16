@@ -272,7 +272,14 @@ public class RhythmGameScreen extends Screen {
         String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getVersion() + "] - " + status;
         guiGraphics.drawString(this.font, songInfo, 12, 10, 0xFFE0E0E0, true);
         if (isReplayMode()) {
-            guiGraphics.drawCenteredString(this.font, "§e§l▶ MODO REPLAY", this.width / 2, 10, 0xFFFFD54F);
+            String replayLabel = "§e§l▶ MODO REPLAY";
+            if (this.activeReplay.playerName != null && !this.activeReplay.playerName.isEmpty()) {
+                replayLabel += " §f// " + this.activeReplay.playerName;
+            }
+            if (this.activeReplay.hasSpeedMod()) {
+                replayLabel += " §c[" + this.activeReplay.getSpeedModLabel() + " @ 1.0x]";
+            }
+            guiGraphics.drawCenteredString(this.font, replayLabel, this.width / 2, 10, 0xFFFFD54F);
         }
 
         // Mensaje de ayuda abajo a la izquierda

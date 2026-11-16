@@ -7,6 +7,7 @@ import com.vsrcraft.client.domain.BeatmapRepository;
 import com.vsrcraft.client.domain.BeatmapSet;
 import com.vsrcraft.client.domain.ReplayData;
 import com.vsrcraft.client.domain.ReplayRepository;
+import com.vsrcraft.client.parser.OsrReplayParser;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -17,6 +18,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -267,7 +269,7 @@ public class SongSelectScreen extends Screen {
 
     private void updateReplayButtonState() {
         if (this.replayButton != null) {
-            this.replayButton.active = (this.selectedBeatmap != null && ReplayRepository.hasReplay(this.selectedBeatmap.getId()));
+            this.replayButton.active = ReplayRepository.hasReplay(this.selectedBeatmap);
         }
     }
 
@@ -360,15 +362,66 @@ public class SongSelectScreen extends Screen {
         this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap)));
     }
 
+    private String statusMessage = "";
+    private int statusMessageColor = 0xFF55FFAA;
+    private long statusMessageUntilMs = 0L;
+
+    private void showStatusMessage(String message, int color) {
+        this.statusMessage = message;
+        this.statusMessageColor = color;
+        this.statusMessageUntilMs = System.currentTimeMillis() + 4000L;
+    }
+
     private void watchSelectedReplay() {
         if (this.selectedBeatmap == null || this.minecraft == null || this.transition.isExiting()) return;
-        ReplayData replay = ReplayRepository.loadReplay(this.selectedBeatmap.getId());
+        ReplayData replay = ReplayRepository.loadReplay(this.selectedBeatmap);
         if (replay == null) return;
+        launchReplay(this.selectedBeatmap, replay);
+    }
+
+    private void launchReplay(Beatmap targetMap, ReplayData replay) {
+        if (targetMap == null || replay == null || this.minecraft == null || this.transition.isExiting()) return;
+        this.selectedBeatmap = targetMap;
+        if (targetMap.getBeatmapSetId() != null) {
+            this.expandedSetId = targetMap.getBeatmapSetId();
+        }
         saveSelectionState();
         this.transitioningToSubScreen = true;
         AudioManager.fadeOutMusic(220L);
-        final Beatmap targetMap = this.selectedBeatmap;
         this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap, replay)));
+    }
+
+    @Override
+    public void onFilesDrop(List<Path> files) {
+        if (files == null || files.isEmpty()) return;
+        for (Path path : files) {
+            String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+            if (!name.endsWith(".osr")) continue;
+
+            try {
+                OsrReplayParser.OsrHeader header = OsrReplayParser.readHeader(path);
+                if (header.gameMode() != 3) {
+                    showStatusMessage("El archivo .osr no es de osu!mania.", 0xFFFF6666);
+                    return;
+                }
+                Beatmap matched = BeatmapRepository.findByOsuMd5(header.beatmapMd5());
+                Beatmap target = (matched != null) ? matched : this.selectedBeatmap;
+                if (target == null) {
+                    showStatusMessage("No se encontró el mapa del .osr ni hay uno seleccionado.", 0xFFFF6666);
+                    return;
+                }
+                ReplayData replay = ReplayRepository.loadOsrFile(path, target);
+                if (replay.events.isEmpty()) {
+                    showStatusMessage("El .osr no contiene eventos de teclas.", 0xFFFF6666);
+                    return;
+                }
+                launchReplay(target, replay);
+                return;
+            } catch (Exception e) {
+                showStatusMessage("Error al leer .osr: " + e.getMessage(), 0xFFFF6666);
+                return;
+            }
+        }
     }
 
     private void triggerPreviewForSelected() {
@@ -443,6 +496,15 @@ public class SongSelectScreen extends Screen {
 
         // 6. Widgets
         super.render(g, mouseX, mouseY, partialTick);
+
+        if (!this.statusMessage.isEmpty() && System.currentTimeMillis() < this.statusMessageUntilMs) {
+            int msgW = this.font.width(this.statusMessage) + 18;
+            int msgX = (this.width - msgW) / 2;
+            int msgY = this.height - 42;
+            g.fill(msgX, msgY, msgX + msgW, msgY + 18, 0xE6101622);
+            drawBorder(g, msgX, msgY, msgW, 18, this.statusMessageColor);
+            g.drawCenteredString(this.font, this.statusMessage, this.width / 2, msgY + 5, this.statusMessageColor);
+        }
 
         // 7. Transición suave (Fade-In / Fade-Out)
         this.transition.renderOverlay(g, this.width, this.height);

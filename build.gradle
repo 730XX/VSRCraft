@@ -30,6 +30,10 @@ dependencies {
 	// Decodificador MP3 puro en Java empaquetado mediante Jar-in-Jar de Fabric Loom
 	implementation "javazoom:jlayer:1.0.1"
 	include "javazoom:jlayer:1.0.1"
+
+	// Descompresor LZMA para leer replays .osr de osu!mania
+	implementation "org.tukaani:xz:1.10"
+	include "org.tukaani:xz:1.10"
 }
 
 processResources {
