@@ -29,5 +29,5 @@ public class LaneTheme {
     }
 
     public static final int LANE_PRESS_GLOW = 0x3344AAFF;
-    public static final int HIT_LINE = 0xFFFFCC00;
+    public static final int HIT_LINE = 0xFFFFFFFF;
 }

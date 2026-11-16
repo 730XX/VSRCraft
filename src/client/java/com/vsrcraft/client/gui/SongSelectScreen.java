@@ -54,6 +54,11 @@ public class SongSelectScreen extends Screen {
     private List<BeatmapSet> filteredSets = new ArrayList<>();
     private final List<ListItem> visibleItems = new ArrayList<>();
 
+    private static String rememberedSetId = null;
+    private static String rememberedBeatmapId = null;
+    private static String rememberedSearchQuery = "";
+    private static double rememberedScrollOffset = -1.0;
+
     private String expandedSetId = null;
     private Beatmap selectedBeatmap = null;
     private int selectedVisibleIndex = 0;
@@ -86,15 +91,40 @@ public class SongSelectScreen extends Screen {
     public SongSelectScreen(Beatmap preselectedBeatmap) {
         super(Component.literal("VSRCraft - Selector de Canciones"));
         this.allSets = BeatmapRepository.getBeatmapSets();
-        this.filteredSets = new ArrayList<>(this.allSets);
-
         if (preselectedBeatmap != null) {
             this.selectedBeatmap = preselectedBeatmap;
             this.expandedSetId = preselectedBeatmap.getBeatmapSetId();
-        } else if (!this.filteredSets.isEmpty()) {
-            BeatmapSet firstSet = this.filteredSets.get(0);
+            this.currentSearchQuery = rememberedSearchQuery != null ? rememberedSearchQuery : "";
+        } else if (rememberedBeatmapId != null) {
+            this.currentSearchQuery = rememberedSearchQuery != null ? rememberedSearchQuery : "";
+            this.expandedSetId = rememberedSetId;
+            for (BeatmapSet s : this.allSets) {
+                for (Beatmap d : s.getDifficulties()) {
+                    if (d.getId().equals(rememberedBeatmapId)) {
+                        this.selectedBeatmap = d;
+                        this.expandedSetId = s.getId();
+                        break;
+                    }
+                }
+                if (this.selectedBeatmap != null) break;
+            }
+        }
+
+        if (this.selectedBeatmap == null && !this.allSets.isEmpty()) {
+            BeatmapSet firstSet = this.allSets.get(0);
             this.expandedSetId = firstSet.getId();
             this.selectedBeatmap = firstSet.getDefaultBeatmap();
+        }
+
+        this.filteredSets = new ArrayList<>();
+        for (BeatmapSet set : this.allSets) {
+            if (set.matchesQuery(this.currentSearchQuery)) {
+                this.filteredSets.add(set);
+            }
+        }
+        if (this.filteredSets.isEmpty() && !this.allSets.isEmpty()) {
+            this.currentSearchQuery = "";
+            this.filteredSets.addAll(this.allSets);
         }
     }
 
@@ -180,6 +210,13 @@ public class SongSelectScreen extends Screen {
         this.addRenderableWidget(this.playButton);
 
         rebuildVisibleList();
+        if (rememberedScrollOffset >= 0.0) {
+            this.targetScrollOffset = rememberedScrollOffset;
+            this.scrollOffset = rememberedScrollOffset;
+            clampScroll();
+        }
+        ensureIndexVisible(this.selectedVisibleIndex);
+        this.scrollOffset = this.targetScrollOffset;
         triggerPreviewForSelected();
     }
 
@@ -263,6 +300,13 @@ public class SongSelectScreen extends Screen {
         }
 
         rebuildVisibleList();
+        if (rememberedScrollOffset >= 0.0) {
+            this.targetScrollOffset = rememberedScrollOffset;
+            this.scrollOffset = rememberedScrollOffset;
+            clampScroll();
+        }
+        ensureIndexVisible(this.selectedVisibleIndex);
+        this.scrollOffset = this.targetScrollOffset;
         triggerPreviewForSelected();
     }
 
@@ -272,14 +316,23 @@ public class SongSelectScreen extends Screen {
         onSearchChanged(this.currentSearchQuery);
     }
 
+    private void saveSelectionState() {
+        rememberedSetId = this.expandedSetId;
+        rememberedBeatmapId = (this.selectedBeatmap != null) ? this.selectedBeatmap.getId() : null;
+        rememberedSearchQuery = this.currentSearchQuery;
+        rememberedScrollOffset = this.targetScrollOffset;
+    }
+
     private void openSettings() {
         if (this.transition.isExiting() || this.minecraft == null) return;
+        saveSelectionState();
         this.transitioningToSubScreen = true;
         this.transition.startExit(180L, () -> this.minecraft.setScreen(new VSRSettingsScreen(this)));
     }
 
     private void startSelectedBeatmap() {
         if (this.selectedBeatmap == null || this.minecraft == null || this.transition.isExiting()) return;
+        saveSelectionState();
         this.transitioningToSubScreen = true;
         AudioManager.fadeOutMusic(220L);
         final Beatmap targetMap = this.selectedBeatmap;
@@ -774,6 +827,7 @@ public class SongSelectScreen extends Screen {
 
     @Override
     public void onClose() {
+        saveSelectionState();
         AudioManager.stopMusic();
         super.onClose();
     }

@@ -91,10 +91,10 @@ public class HitEffectRenderer {
         glow.centerX = laneCenterX;
         glow.centerY = hitLineY + 2;
         glow.maxRadius = switch (judgement) {
-            case MARVELOUS -> 16.0f;
-            case PERFECT -> 14.0f;
-            case GREAT -> 12.0f;
-            case BAD -> 10.0f;
+            case MARVELOUS -> 26.0f;
+            case PERFECT -> 24.0f;
+            case GREAT -> 22.0f;
+            case BAD -> 20.0f;
             default -> 10.0f;
         };
         glow.rgb = pickSparkColor(judgement, 0);
@@ -223,22 +223,25 @@ public class HitEffectRenderer {
     private static void drawRadialGlow(GuiGraphics g, int cx, int cy, float radius, int rgb, float fade) {
         int steps = 4;
         int rgbMask = rgb & 0x00FFFFFF;
-        // Capas concéntricas suaves para simular un glow radial sin texturas externas
+        // Glow ovalado horizontal (más ancho a lo largo del carril y más plano en vertical)
+        float radiusX = radius * 1.35f;
+        float radiusY = radius * 0.45f;
         for (int step = steps; step >= 1; step--) {
             float frac = (float) step / (float) steps;
-            int r = Math.max(1, Math.round(radius * frac));
+            int rx = Math.max(2, Math.round(radiusX * frac));
+            int ry = Math.max(1, Math.round(radiusY * frac));
             float layerAlpha = (1.0f - frac * 0.72f) * 0.24f * fade;
             int alpha = Math.max(0, Math.min(255, Math.round(layerAlpha * 255.0f)));
             if (alpha <= 1) continue;
             int color = (alpha << 24) | rgbMask;
-            drawFilledDisc(g, cx, cy, r, color);
+            drawFilledOval(g, cx, cy, rx, ry, color);
         }
     }
 
-    private static void drawFilledDisc(GuiGraphics g, int cx, int cy, int r, int color) {
-        int r2 = r * r;
-        for (int dy = -r; dy <= r; dy++) {
-            int dx = (int) Math.sqrt(r2 - dy * dy);
+    private static void drawFilledOval(GuiGraphics g, int cx, int cy, int rx, int ry, int color) {
+        for (int dy = -ry; dy <= ry; dy++) {
+            double normY = (double) dy / (double) ry;
+            int dx = (int) Math.round(rx * Math.sqrt(Math.max(0.0, 1.0 - normY * normY)));
             g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
         }
     }
