@@ -19,7 +19,6 @@ public class NoteRenderer {
     }
 
     public static void renderNotes(GuiGraphics graphics, List<Note> notes, double currentSongTimeMs, int boardStartX, int hitLineY, int screenHeight, int laneCount, float playbackRate) {
-        int hitCenterY = hitLineY + 2; // Centro de la línea de impacto (grosor 4px)
         int noteHeight = RhythmConfig.getNoteHeight();
         // Dividimos por playbackRate para mantener constante la velocidad visual de caída (px/seg real)
         // y que al subir el rate solo aumente la densidad entre notas.
@@ -28,6 +27,10 @@ public class NoteRenderer {
         int halfNote = noteHeight / 2;
         VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
         int shapeRadius = Math.max(6, Math.min((laneWidth - 8) / 2, 18));
+        // En Círculos/Flechas, los receptores descansan encima de hitLineY, así que el punto 0ms es su centro.
+        int hitCenterY = (shape == VSRCraftSettings.NoteShape.BARS)
+                ? (hitLineY + 2)
+                : (hitLineY - shapeRadius);
 
         for (Note note : notes) {
             // Notas completadas con éxito ya no se dibujan

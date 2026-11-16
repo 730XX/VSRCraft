@@ -18,7 +18,7 @@ public class LaneRenderer {
         int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
         int receptorRadius = Math.max(6, Math.min((laneWidth - 8) / 2, 18));
-        int hitCenterY = hitLineY + 2;
+        int receptorCenterY = hitLineY - receptorRadius;
 
         for (int i = 0; i < laneCount; i++) {
             int laneX = boardStartX + (i * laneWidth);
@@ -43,9 +43,8 @@ public class LaneRenderer {
                 }
             }
         } else {
-            // Línea de juicio en la base inferior donde inician los receptores
-            int guideLineY = hitCenterY + receptorRadius;
-            graphics.fill(boardStartX, guideLineY, boardStartX + boardWidth, guideLineY + 2, 0x66FFFFFF);
+            // Línea de juicio en hitLineY (base inferior donde inician los receptores)
+            graphics.fill(boardStartX, hitLineY, boardStartX + boardWidth, hitLineY + 2, 0x66FFFFFF);
             for (int i = 0; i < laneCount; i++) {
                 int laneCenterX = boardStartX + (i * laneWidth) + (laneWidth / 2);
                 boolean isPressed = lanePressed != null && i < lanePressed.length && lanePressed[i];
@@ -54,18 +53,18 @@ public class LaneRenderer {
                 if (shape == VSRCraftSettings.NoteShape.CIRCLES) {
                     if (isPressed) {
                         int fillAlpha = (laneColor & 0x00FFFFFF) | 0x55000000;
-                        NoteShapeRenderer.drawFilledCircle(graphics, laneCenterX, hitCenterY, receptorRadius, fillAlpha);
+                        NoteShapeRenderer.drawFilledCircle(graphics, laneCenterX, receptorCenterY, receptorRadius, fillAlpha);
                     }
                     int ringColor = isPressed ? laneColor : 0xAAFFFFFF;
-                    NoteShapeRenderer.drawCircleOutline(graphics, laneCenterX, hitCenterY, receptorRadius, 2, ringColor);
+                    NoteShapeRenderer.drawCircleOutline(graphics, laneCenterX, receptorCenterY, receptorRadius, 2, ringColor);
                 } else {
                     NoteShapeRenderer.ArrowDir dir = NoteShapeRenderer.getArrowDirection(i, laneCount);
                     if (isPressed) {
                         int fillAlpha = (laneColor & 0x00FFFFFF) | 0x66000000;
-                        NoteShapeRenderer.drawArrow(graphics, laneCenterX, hitCenterY, receptorRadius, dir, fillAlpha, false);
+                        NoteShapeRenderer.drawArrow(graphics, laneCenterX, receptorCenterY, receptorRadius, dir, fillAlpha, false);
                     }
                     int outlineColor = isPressed ? laneColor : 0xAAFFFFFF;
-                    NoteShapeRenderer.drawArrow(graphics, laneCenterX, hitCenterY, receptorRadius, dir, outlineColor, true);
+                    NoteShapeRenderer.drawArrow(graphics, laneCenterX, receptorCenterY, receptorRadius, dir, outlineColor, true);
                 }
             }
         }

@@ -649,13 +649,14 @@ public class VSRSettingsScreen extends Screen {
         // 2. Receptores / Línea de Impacto según el shape elegido
         VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
         int previewRadius = Math.max(5, Math.min((laneW - 6) / 2, 14));
-        int hitCenterY = hitLineY + 1;
+        int hitCenterY = (shape == VSRCraftSettings.NoteShape.BARS)
+                ? (hitLineY + 1)
+                : (hitLineY - previewRadius);
 
         if (shape == VSRCraftSettings.NoteShape.BARS) {
             g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, LaneTheme.HIT_LINE);
         } else {
-            int guideLineY = hitCenterY + previewRadius;
-            g.fill(boardStartX, guideLineY, boardStartX + boardW, guideLineY + 2, 0x66FFFFFF);
+            g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 2, 0x66FFFFFF);
             for (int lane = 0; lane < keyCount; lane++) {
                 int laneCenterX = boardStartX + (lane * laneW) + (laneW / 2);
                 if (shape == VSRCraftSettings.NoteShape.CIRCLES) {
