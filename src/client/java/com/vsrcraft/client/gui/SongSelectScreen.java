@@ -5,6 +5,8 @@ import com.vsrcraft.client.config.VSRCraftSettings;
 import com.vsrcraft.client.domain.Beatmap;
 import com.vsrcraft.client.domain.BeatmapRepository;
 import com.vsrcraft.client.domain.BeatmapSet;
+import com.vsrcraft.client.domain.ReplayData;
+import com.vsrcraft.client.domain.ReplayRepository;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -80,6 +82,7 @@ public class SongSelectScreen extends Screen {
 
     private EditBox searchBox;
     private Button playButton;
+    private Button replayButton;
     private boolean transitioningToSubScreen = false;
     private boolean hasTriggeredInitialPreview = false;
     private final ScreenTransition transition = new ScreenTransition(300L);
@@ -199,15 +202,26 @@ public class SongSelectScreen extends Screen {
         this.listWidth = this.rightPanelW;
         this.listHeight = Math.max(40, this.rightPanelH - searchH - 5);
 
-        // 5. Botón principal [▶ JUGAR (ENTER)]
-        int playBtnW = this.leftPanelW - 16;
+        // 5. Botones principales [▶ JUGAR BEATMAP] y [▶ Replay]
+        int totalBottomBtnW = this.leftPanelW - 16;
+        int replayBtnW = 68;
+        int playBtnGap = 4;
+        int playBtnW = totalBottomBtnW - replayBtnW - playBtnGap;
         int playBtnX = this.leftPanelX + 8;
         int playBtnY = this.leftPanelY + this.leftPanelH - 28;
         this.playButton = Button.builder(
-                Component.literal("§b§l▶ JUGAR BEATMAP"),
+                Component.literal("§b§l▶ JUGAR"),
                 btn -> startSelectedBeatmap()
         ).bounds(playBtnX, playBtnY, playBtnW, 20).build();
         this.addRenderableWidget(this.playButton);
+
+        this.replayButton = Button.builder(
+                Component.literal("§e▶ Replay"),
+                btn -> watchSelectedReplay()
+        ).bounds(playBtnX + playBtnW + playBtnGap, playBtnY, replayBtnW, 20)
+         .tooltip(Tooltip.create(Component.literal("Ver el Replay guardado de tu mejor puntuación (F1)")))
+         .build();
+        this.addRenderableWidget(this.replayButton);
 
         rebuildVisibleList();
         if (rememberedScrollOffset >= 0.0) {
@@ -247,6 +261,13 @@ public class SongSelectScreen extends Screen {
 
         if (this.playButton != null) {
             this.playButton.active = (this.selectedBeatmap != null);
+        }
+        updateReplayButtonState();
+    }
+
+    private void updateReplayButtonState() {
+        if (this.replayButton != null) {
+            this.replayButton.active = (this.selectedBeatmap != null && ReplayRepository.hasReplay(this.selectedBeatmap.getId()));
         }
     }
 
@@ -339,7 +360,19 @@ public class SongSelectScreen extends Screen {
         this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap)));
     }
 
+    private void watchSelectedReplay() {
+        if (this.selectedBeatmap == null || this.minecraft == null || this.transition.isExiting()) return;
+        ReplayData replay = ReplayRepository.loadReplay(this.selectedBeatmap.getId());
+        if (replay == null) return;
+        saveSelectionState();
+        this.transitioningToSubScreen = true;
+        AudioManager.fadeOutMusic(220L);
+        final Beatmap targetMap = this.selectedBeatmap;
+        this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap, replay)));
+    }
+
     private void triggerPreviewForSelected() {
+        updateReplayButtonState();
         if (this.selectedBeatmap != null && this.selectedBeatmap.getAudioResourcePath() != null && !this.selectedBeatmap.getAudioResourcePath().isEmpty()) {
             boolean isInitial = !this.hasTriggeredInitialPreview;
             this.hasTriggeredInitialPreview = true;
@@ -744,6 +777,10 @@ public class SongSelectScreen extends Screen {
                 startSelectedBeatmap();
                 return true;
             }
+        }
+        if (key == GLFW.GLFW_KEY_F1) {
+            watchSelectedReplay();
+            return true;
         }
 
         boolean searchFocused = this.searchBox != null && this.searchBox.isFocused();

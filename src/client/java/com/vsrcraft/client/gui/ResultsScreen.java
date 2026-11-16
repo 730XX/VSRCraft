@@ -3,6 +3,7 @@ package com.vsrcraft.client.gui;
 import com.vsrcraft.client.audio.AudioManager;
 import com.vsrcraft.client.domain.Beatmap;
 import com.vsrcraft.client.domain.Judgement;
+import com.vsrcraft.client.domain.ReplayData;
 import com.vsrcraft.client.domain.ScoreTracker;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -30,13 +31,14 @@ public class ResultsScreen extends Screen {
     private final int totalJudged;
     private final boolean isNewRecord;
     private final int previousBestScore;
+    private final ReplayData sessionReplay;
 
     private final ScreenTransition transition = new ScreenTransition(320L);
 
     private int leftPanelX, leftPanelY, leftPanelW, leftPanelH;
     private int rightPanelX, rightPanelY, rightPanelW, rightPanelH;
 
-    public ResultsScreen(Beatmap beatmap, ScoreTracker tracker, boolean isNewRecord, int previousBestScore) {
+    public ResultsScreen(Beatmap beatmap, ScoreTracker tracker, boolean isNewRecord, int previousBestScore, ReplayData sessionReplay) {
         super(Component.literal("VSRCraft - Resultados: " + beatmap.getTitle()));
         this.beatmap = beatmap;
         this.score = tracker.getScore();
@@ -48,6 +50,7 @@ public class ResultsScreen extends Screen {
         this.totalJudged = Math.max(1, tracker.getTotalJudged());
         this.isNewRecord = isNewRecord;
         this.previousBestScore = previousBestScore;
+        this.sessionReplay = sessionReplay;
     }
 
     @Override
@@ -70,20 +73,40 @@ public class ResultsScreen extends Screen {
         this.rightPanelW = Math.max(180, this.width - this.rightPanelX - margin);
         this.rightPanelH = contentH;
 
-        int btnW = 150;
+        int btnW = 132;
         int btnH = 22;
         int btnY = this.height - 30;
-        int gap = 12;
+        int gap = 8;
+        int totalBtnW = btnW * 3 + gap * 2;
+        int startBtnX = (this.width - totalBtnW) / 2;
 
         this.addRenderableWidget(Button.builder(
                 Component.literal("§a↻ Reintentar (R)"),
                 btn -> retryMap()
-        ).bounds(this.width / 2 - btnW - gap / 2, btnY, btnW, btnH).build());
+        ).bounds(startBtnX, btnY, btnW, btnH).build());
+
+        Button replayBtn = Button.builder(
+                Component.literal("§e▶ Ver Replay (F1)"),
+                btn -> watchReplay()
+        ).bounds(startBtnX + btnW + gap, btnY, btnW, btnH).build();
+        replayBtn.active = (this.sessionReplay != null && this.sessionReplay.events != null && !this.sessionReplay.events.isEmpty());
+        this.addRenderableWidget(replayBtn);
 
         this.addRenderableWidget(Button.builder(
-                Component.literal("§b< Volver al Selector (ENTER)"),
+                Component.literal("§b< Selector (ENTER)"),
                 btn -> backToSelect()
-        ).bounds(this.width / 2 + gap / 2, btnY, btnW, btnH).build());
+        ).bounds(startBtnX + (btnW + gap) * 2, btnY, btnW, btnH).build());
+    }
+
+    private void watchReplay() {
+        if (this.transition.isExiting() || this.minecraft == null || this.sessionReplay == null || this.sessionReplay.events.isEmpty()) {
+            return;
+        }
+        AudioManager.fadeOutMusic(220L);
+        this.transition.startExit(240L, () -> {
+            AudioManager.stopMusic();
+            this.minecraft.setScreen(new RhythmGameScreen(this.beatmap, this.sessionReplay));
+        });
     }
 
     private void retryMap() {
@@ -237,6 +260,10 @@ public class ResultsScreen extends Screen {
         int key = event.key();
         if (key == GLFW.GLFW_KEY_R) {
             retryMap();
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_F1) {
+            watchReplay();
             return true;
         }
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_ESCAPE) {

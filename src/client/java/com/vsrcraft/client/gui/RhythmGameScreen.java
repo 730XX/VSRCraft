@@ -7,6 +7,8 @@ import com.vsrcraft.client.config.VSRCraftSettings;
 import com.vsrcraft.client.domain.Beatmap;
 import com.vsrcraft.client.domain.BeatmapRepository;
 import com.vsrcraft.client.domain.Judgement;
+import com.vsrcraft.client.domain.ReplayData;
+import com.vsrcraft.client.domain.ReplayRepository;
 import com.vsrcraft.client.domain.ScoreTracker;
 import com.vsrcraft.client.engine.RhythmEngine;
 import com.vsrcraft.client.gui.renderer.HitEffectRenderer;
@@ -23,6 +25,8 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -50,15 +54,24 @@ public class RhythmGameScreen extends Screen {
     private final HitEffectRenderer hitEffects = new HitEffectRenderer();
     private final KeyOverlayRenderer keyOverlay;
 
+    // Grabación y Reproducción de Replays
+    private final ReplayData activeReplay;
+    private int replayCursor = 0;
+    private final List<ReplayData.ReplayEvent> recordedEvents = new ArrayList<>();
+
     // Botones interactivos en pantalla de fallo
     private Button retryButton;
     private Button exitButton;
 
     public RhythmGameScreen() {
-        this(getDefaultBeatmap());
+        this(getDefaultBeatmap(), null);
     }
 
     public RhythmGameScreen(Beatmap beatmap) {
+        this(beatmap, null);
+    }
+
+    public RhythmGameScreen(Beatmap beatmap, ReplayData replayData) {
         super(Component.literal("VSRCraft - " + beatmap.getTitle()));
         this.keyCount = beatmap.getKeyCount();
         this.laneKeys = KeybindConfig.getKeysForMode(keyCount);
@@ -66,6 +79,11 @@ public class RhythmGameScreen extends Screen {
         this.engine = new RhythmEngine(beatmap);
         this.keyOverlay = new KeyOverlayRenderer(keyCount);
         this.leadInMs = Math.max(MIN_LEAD_IN_MS, beatmap.getAudioLeadInMs());
+        this.activeReplay = replayData;
+    }
+
+    private boolean isReplayMode() {
+        return this.activeReplay != null;
     }
 
     private static Beatmap getDefaultBeatmap() {
@@ -136,6 +154,9 @@ public class RhythmGameScreen extends Screen {
         this.transitioningToResults = false;
         this.hitEffects.clear();
         this.keyOverlay.reset();
+        this.replayCursor = 0;
+        this.recordedEvents.clear();
+        Arrays.fill(this.lanePressed, false);
         this.engine.start(0);
         AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
     }
@@ -206,6 +227,9 @@ public class RhythmGameScreen extends Screen {
 
         long currentSongTimeLong = Math.round(currentSongTimeMs);
         if (!isPaused && !engine.isFailed()) {
+            if (isReplayMode() && !this.clearTriggered) {
+                dispatchReplayEvents(currentSongTimeLong);
+            }
             engine.update(currentSongTimeLong);
         }
 
@@ -247,6 +271,9 @@ public class RhythmGameScreen extends Screen {
                 : (currentSongTimeLong / 1000) + "s / " + (engine.getBeatmap().getDurationMs() / 1000) + "s";
         String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getVersion() + "] - " + status;
         guiGraphics.drawString(this.font, songInfo, 12, 10, 0xFFE0E0E0, true);
+        if (isReplayMode()) {
+            guiGraphics.drawCenteredString(this.font, "§e§l▶ MODO REPLAY", this.width / 2, 10, 0xFFFFD54F);
+        }
 
         // Mensaje de ayuda abajo a la izquierda
         String offsetStr = (VSRCraftSettings.get().globalAudioOffsetMs >= 0 ? "+" : "") + VSRCraftSettings.get().globalAudioOffsetMs + "ms";
@@ -272,14 +299,28 @@ public class RhythmGameScreen extends Screen {
             ScoreTracker tracker = this.engine.getScoreTracker();
             VSRCraftSettings.BeatmapRecord prevRecord = VSRCraftSettings.get().getPersonalBest(this.engine.getBeatmap().getId());
             int prevBestScore = (prevRecord != null) ? prevRecord.bestScore : 0;
-            boolean isNewRecord = tracker.getScore() > prevBestScore && tracker.getScore() > 0;
+            boolean isNewRecord = !isReplayMode() && tracker.getScore() > prevBestScore && tracker.getScore() > 0;
 
+            ReplayData sessionReplay = isReplayMode()
+                    ? this.activeReplay
+                    : new ReplayData(
+                            this.engine.getBeatmap().getId(),
+                            tracker.getScore(),
+                            tracker.getAccuracy(),
+                            tracker.getMaxCombo(),
+                            tracker.getRank(),
+                            this.recordedEvents
+                    );
+
+            if (isNewRecord) {
+                ReplayRepository.saveBestReplay(sessionReplay);
+            }
             saveSessionRecordIfValid();
             AudioManager.fadeOutMusic(320L);
             this.transition.startExit(340L, () -> {
                 AudioManager.stopMusic();
                 if (this.minecraft != null) {
-                    this.minecraft.setScreen(new ResultsScreen(this.engine.getBeatmap(), tracker, isNewRecord, prevBestScore));
+                    this.minecraft.setScreen(new ResultsScreen(this.engine.getBeatmap(), tracker, isNewRecord, prevBestScore, sessionReplay));
                 }
             });
         }
@@ -350,6 +391,33 @@ public class RhythmGameScreen extends Screen {
         g.drawCenteredString(this.font, statsLine, centerX, centerY + 6, 0xFFE0E0E0);
     }
 
+    private void dispatchReplayEvents(long currentSongTimeLong) {
+        if (this.activeReplay == null || this.activeReplay.events == null) return;
+        List<ReplayData.ReplayEvent> events = this.activeReplay.events;
+        while (this.replayCursor < events.size()) {
+            ReplayData.ReplayEvent ev = events.get(this.replayCursor);
+            if (ev.timeMs > currentSongTimeLong) {
+                break;
+            }
+            this.replayCursor++;
+            if (ev.lane < 0 || ev.lane >= this.keyCount) continue;
+
+            this.lanePressed[ev.lane] = ev.pressed;
+            if (ev.pressed) {
+                this.keyOverlay.onLanePressed(ev.lane);
+                Judgement judgement = this.engine.onLanePressed(ev.lane, ev.timeMs);
+                if (judgement != null && judgement != Judgement.MISS) {
+                    AudioManager.playHitSound();
+                }
+            } else {
+                Judgement releaseJudgement = this.engine.onLaneReleased(ev.lane, ev.timeMs);
+                if (releaseJudgement != null && releaseJudgement != Judgement.MISS) {
+                    AudioManager.playHitSound();
+                }
+            }
+        }
+    }
+
     @Override
     public boolean keyPressed(KeyEvent event) {
         if (engine.isFailed()) {
@@ -391,6 +459,10 @@ public class RhythmGameScreen extends Screen {
             return true;
         }
 
+        if (isReplayMode()) {
+            return super.keyPressed(event);
+        }
+
         long currentSongTime = Math.round(getCurrentSongTimeMs());
 
         for (int lane = 0; lane < keyCount; lane++) {
@@ -400,6 +472,7 @@ public class RhythmGameScreen extends Screen {
                 }
                 lanePressed[lane] = true;
                 this.keyOverlay.onLanePressed(lane);
+                this.recordedEvents.add(new ReplayData.ReplayEvent(currentSongTime, lane, true));
                 Judgement judgement = engine.onLanePressed(lane, currentSongTime);
                 if (judgement != null && judgement != Judgement.MISS) {
                     AudioManager.playHitSound();
@@ -413,12 +486,13 @@ public class RhythmGameScreen extends Screen {
 
     @Override
     public boolean keyReleased(KeyEvent event) {
-        if (engine.isFailed()) return true;
+        if (engine.isFailed() || isReplayMode()) return true;
 
         long currentSongTime = Math.round(getCurrentSongTimeMs());
         for (int lane = 0; lane < keyCount; lane++) {
             if (event.key() == laneKeys[lane]) {
                 lanePressed[lane] = false;
+                this.recordedEvents.add(new ReplayData.ReplayEvent(currentSongTime, lane, false));
                 Judgement releaseJudgement = engine.onLaneReleased(lane, currentSongTime);
                 if (releaseJudgement != null && releaseJudgement != Judgement.MISS) {
                     AudioManager.playHitSound();
@@ -430,7 +504,7 @@ public class RhythmGameScreen extends Screen {
     }
 
     private void saveSessionRecordIfValid() {
-        if (engine.isFailed()) return; // No registrar récord si el mapa fue fallado
+        if (engine.isFailed() || isReplayMode()) return; // No registrar récord si el mapa fue fallado o es un Replay
         ScoreTracker tracker = this.engine.getScoreTracker();
         if (tracker.getTotalJudged() > 0 && tracker.getScore() > 0) {
             VSRCraftSettings.get().updatePersonalBest(
