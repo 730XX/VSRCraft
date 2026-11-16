@@ -2,6 +2,7 @@ package com.vsrcraft.client.gui.renderer;
 
 import com.vsrcraft.client.config.LaneTheme;
 import com.vsrcraft.client.config.RhythmConfig;
+import com.vsrcraft.client.config.VSRCraftSettings;
 import com.vsrcraft.client.domain.Note;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -25,6 +26,8 @@ public class NoteRenderer {
         float scrollSpeed = RhythmConfig.getScrollSpeed() / Math.max(0.5f, playbackRate);
         int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         int halfNote = noteHeight / 2;
+        VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
+        int shapeRadius = Math.max(6, Math.min((laneWidth - 8) / 2, 18));
 
         for (Note note : notes) {
             // Notas completadas con éxito ya no se dibujan
@@ -74,20 +77,60 @@ public class NoteRenderer {
                 }
             }
 
-            // 2. Renderizar cabeza de la nota
+            // 2. Renderizar cabeza de la nota según el shape elegido
             // Si está siendo sostenida, la cabeza se ancla fijamente en la línea de impacto
             double effectiveNoteTimeMs = isHolding ? currentSongTimeMs : note.getOffsetMs();
             double timeUntilHit = effectiveNoteTimeMs - currentSongTimeMs;
             int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
-            int noteTopY = centerY - halfNote;
-            int noteBottomY = noteTopY + noteHeight;
+            int centerX = noteX + noteWidth / 2;
 
-            if (noteBottomY >= 0 && noteTopY <= screenHeight) {
-                graphics.fill(noteX, noteTopY, noteX + noteWidth, noteBottomY, noteColor);
+            renderNoteHead(graphics, shape, noteX, noteWidth, centerX, centerY, halfNote, noteHeight, shapeRadius,
+                    note.getLane(), laneCount, noteColor, isHolding, screenHeight);
+        }
+    }
 
-                // Destello brillante en la cabeza mientras el jugador la sostiene activamente
-                if (isHolding) {
-                    graphics.fill(noteX + 1, noteTopY + 1, noteX + noteWidth - 1, noteTopY + 3, 0xFFFFFFFF);
+    private static void renderNoteHead(
+            GuiGraphics graphics,
+            VSRCraftSettings.NoteShape shape,
+            int noteX,
+            int noteWidth,
+            int centerX,
+            int centerY,
+            int halfNote,
+            int noteHeight,
+            int shapeRadius,
+            int lane,
+            int laneCount,
+            int noteColor,
+            boolean isHolding,
+            int screenHeight
+    ) {
+        switch (shape) {
+            case CIRCLES -> {
+                if (centerY + shapeRadius >= 0 && centerY - shapeRadius <= screenHeight) {
+                    NoteShapeRenderer.drawFilledCircle(graphics, centerX, centerY, shapeRadius, noteColor);
+                    // Anillo interior sutil estilo osu!mania
+                    int innerRingColor = isHolding ? 0xFFFFFFFF : 0x55FFFFFF;
+                    NoteShapeRenderer.drawCircleOutline(graphics, centerX, centerY, Math.max(3, shapeRadius - 2), 1, innerRingColor);
+                }
+            }
+            case ARROWS -> {
+                if (centerY + shapeRadius >= 0 && centerY - shapeRadius <= screenHeight) {
+                    NoteShapeRenderer.ArrowDir dir = NoteShapeRenderer.getArrowDirection(lane, laneCount);
+                    NoteShapeRenderer.drawArrow(graphics, centerX, centerY, shapeRadius, dir, noteColor, false);
+                    if (isHolding) {
+                        NoteShapeRenderer.drawArrow(graphics, centerX, centerY, Math.max(3, shapeRadius - 3), dir, 0xCCFFFFFF, true);
+                    }
+                }
+            }
+            case BARS -> {
+                int noteTopY = centerY - halfNote;
+                int noteBottomY = noteTopY + noteHeight;
+                if (noteBottomY >= 0 && noteTopY <= screenHeight) {
+                    graphics.fill(noteX, noteTopY, noteX + noteWidth, noteBottomY, noteColor);
+                    if (isHolding) {
+                        graphics.fill(noteX + 1, noteTopY + 1, noteX + noteWidth - 1, noteTopY + 3, 0xFFFFFFFF);
+                    }
                 }
             }
         }

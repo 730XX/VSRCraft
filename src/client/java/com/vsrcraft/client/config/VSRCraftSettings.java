@@ -20,6 +20,50 @@ public class VSRCraftSettings {
 
     private static VSRCraftSettings instance;
 
+    public enum NoteShape {
+        BARS("Barras"),
+        CIRCLES("Círculos"),
+        ARROWS("Flechas");
+
+        private final String displayName;
+
+        NoteShape(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public NoteShape next() {
+            NoteShape[] values = values();
+            return values[(this.ordinal() + 1) % values.length];
+        }
+    }
+
+    public enum ColorPreset {
+        CLASSIC("Clásico"),
+        NEON_CYBER("Neón Cyber"),
+        OSU_PINK("osu! Rosa"),
+        RAINBOW("Arcoíris"),
+        MONOCHROME("Monocromo");
+
+        private final String displayName;
+
+        ColorPreset(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public ColorPreset next() {
+            ColorPreset[] values = values();
+            return values[(this.ordinal() + 1) % values.length];
+        }
+    }
+
     public static class BeatmapRecord {
         public int bestScore = 0;
         public float bestAccuracy = 0.0f;
@@ -54,6 +98,16 @@ public class VSRCraftSettings {
     public boolean enableLaneGlow = false; // Hit glow al presionar carril
     public boolean enableHitEffects = true; // Chispas cúbicas (Voxel Sparks) al golpear notas
     public float backgroundDim = 0.6f;     // Oscurecimiento de pantalla completa (0.0 = nada, 1.0 = negro total)
+    public NoteShape noteShape = NoteShape.BARS;
+    public ColorPreset colorPreset = ColorPreset.CLASSIC;
+
+    public NoteShape getNoteShape() {
+        return noteShape != null ? noteShape : NoteShape.BARS;
+    }
+
+    public ColorPreset getColorPreset() {
+        return colorPreset != null ? colorPreset : ColorPreset.CLASSIC;
+    }
 
     // 4. Teclas / Keybinds (4K por defecto: D, F, J, K | 7K: S, D, F, ESPACIO, J, K, L)
     public int[] keybinds4K = {
@@ -130,6 +184,12 @@ public class VSRCraftSettings {
             }
             if (instance.personalBests == null) {
                 instance.personalBests = new HashMap<>();
+            }
+            if (instance.noteShape == null) {
+                instance.noteShape = NoteShape.BARS;
+            }
+            if (instance.colorPreset == null) {
+                instance.colorPreset = ColorPreset.CLASSIC;
             }
         }
     }

@@ -7,6 +7,7 @@ import com.vsrcraft.client.config.LaneTheme;
 import com.vsrcraft.client.config.RhythmConfig;
 import com.vsrcraft.client.config.VSRCraftSettings;
 import com.vsrcraft.client.domain.Note;
+import com.vsrcraft.client.gui.renderer.NoteShapeRenderer;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
@@ -400,6 +401,26 @@ public class VSRSettingsScreen extends Screen {
                 }
         ).bounds(x, startY + (row++ * spacing), w, 20).build();
         this.addRenderableWidget(hitEffectsToggle);
+
+        // Selector cíclico: Forma de Notas (Barras / Círculos / Flechas)
+        Button noteShapeBtn = Button.builder(
+                Component.literal("Forma de Notas: §b" + settings.getNoteShape().getDisplayName()),
+                btn -> {
+                    settings.noteShape = settings.getNoteShape().next();
+                    btn.setMessage(Component.literal("Forma de Notas: §b" + settings.getNoteShape().getDisplayName()));
+                }
+        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        this.addRenderableWidget(noteShapeBtn);
+
+        // Selector cíclico: Tema de Color
+        Button colorPresetBtn = Button.builder(
+                Component.literal("Tema de Color: §b" + settings.getColorPreset().getDisplayName()),
+                btn -> {
+                    settings.colorPreset = settings.getColorPreset().next();
+                    btn.setMessage(Component.literal("Tema de Color: §b" + settings.getColorPreset().getDisplayName()));
+                }
+        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        this.addRenderableWidget(colorPresetBtn);
     }
 
     private void initKeybindsTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
@@ -456,6 +477,8 @@ public class VSRSettingsScreen extends Screen {
         s.enableLaneGlow = false;
         s.enableHitEffects = true;
         s.backgroundDim = 0.6f;
+        s.noteShape = VSRCraftSettings.NoteShape.BARS;
+        s.colorPreset = VSRCraftSettings.ColorPreset.CLASSIC;
         s.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
         s.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
         VSRCraftSettings.save();
@@ -623,8 +646,25 @@ public class VSRSettingsScreen extends Screen {
             }
         }
 
-        // 2. Línea de Impacto
-        g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, LaneTheme.HIT_LINE);
+        // 2. Receptores / Línea de Impacto según el shape elegido
+        VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
+        int previewRadius = Math.max(5, Math.min((laneW - 6) / 2, 14));
+        int hitCenterY = hitLineY + 1;
+
+        if (shape == VSRCraftSettings.NoteShape.BARS) {
+            g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, LaneTheme.HIT_LINE);
+        } else {
+            g.fill(boardStartX, hitCenterY, boardStartX + boardW, hitCenterY + 1, 0x33FFFFFF);
+            for (int lane = 0; lane < keyCount; lane++) {
+                int laneCenterX = boardStartX + (lane * laneW) + (laneW / 2);
+                if (shape == VSRCraftSettings.NoteShape.CIRCLES) {
+                    NoteShapeRenderer.drawCircleOutline(g, laneCenterX, hitCenterY, previewRadius, 2, 0xAAFFFFFF);
+                } else {
+                    NoteShapeRenderer.ArrowDir dir = NoteShapeRenderer.getArrowDirection(lane, keyCount);
+                    NoteShapeRenderer.drawArrow(g, laneCenterX, hitCenterY, previewRadius, dir, 0xAAFFFFFF, true);
+                }
+            }
+        }
 
         // 3. Notas en bucle continuo a la velocidad y grosor configurados
         long now = System.currentTimeMillis();
@@ -634,7 +674,6 @@ public class VSRSettingsScreen extends Screen {
         float scrollSpeed = VSRCraftSettings.get().scrollSpeed;
         int noteH = VSRCraftSettings.get().noteHeight;
         int halfNote = noteH / 2;
-        int hitCenterY = hitLineY + 1;
 
         List<Note> previewNotes = (keyCount == 4) ? this.previewNotes4K : this.previewNotes7K;
 
@@ -662,11 +701,24 @@ public class VSRSettingsScreen extends Screen {
             // Cabeza de la nota
             double timeUntilHit = note.getOffsetMs() - currentPreviewTimeMs;
             int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
-            int topY = centerY - halfNote;
-            int bottomY = topY + noteH;
+            int centerX = noteX + noteWidth / 2;
 
-            if (bottomY >= trackAreaTop && topY <= trackAreaBottom) {
-                g.fill(noteX, topY, noteX + noteWidth, bottomY, noteColor);
+            if (shape == VSRCraftSettings.NoteShape.CIRCLES) {
+                if (centerY + previewRadius >= trackAreaTop && centerY - previewRadius <= trackAreaBottom) {
+                    NoteShapeRenderer.drawFilledCircle(g, centerX, centerY, previewRadius, noteColor);
+                    NoteShapeRenderer.drawCircleOutline(g, centerX, centerY, Math.max(2, previewRadius - 2), 1, 0x55FFFFFF);
+                }
+            } else if (shape == VSRCraftSettings.NoteShape.ARROWS) {
+                if (centerY + previewRadius >= trackAreaTop && centerY - previewRadius <= trackAreaBottom) {
+                    NoteShapeRenderer.ArrowDir dir = NoteShapeRenderer.getArrowDirection(note.getLane(), keyCount);
+                    NoteShapeRenderer.drawArrow(g, centerX, centerY, previewRadius, dir, noteColor, false);
+                }
+            } else {
+                int topY = centerY - halfNote;
+                int bottomY = topY + noteH;
+                if (bottomY >= trackAreaTop && topY <= trackAreaBottom) {
+                    g.fill(noteX, topY, noteX + noteWidth, bottomY, noteColor);
+                }
             }
         }
 

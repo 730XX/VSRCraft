@@ -16,17 +16,57 @@ public class LaneRenderer {
         boolean allowGlow = VSRCraftSettings.get().enableLaneGlow;
 
         int laneWidth = RhythmConfig.getLaneWidth(laneCount);
+        VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
+        int receptorRadius = Math.max(6, Math.min((laneWidth - 8) / 2, 18));
+        int hitCenterY = hitLineY + 2;
+
         for (int i = 0; i < laneCount; i++) {
             int laneX = boardStartX + (i * laneWidth);
             graphics.fill(laneX, 0, laneX + 1, screenHeight, dividerColor);
 
-            if (allowGlow && lanePressed != null && i < lanePressed.length && lanePressed[i]) {
+            boolean isPressed = lanePressed != null && i < lanePressed.length && lanePressed[i];
+            if (allowGlow && isPressed) {
                 graphics.fill(laneX + 1, 0, laneX + laneWidth, screenHeight, LaneTheme.LANE_PRESS_GLOW);
             }
         }
         graphics.fill(boardStartX + boardWidth, 0, boardStartX + boardWidth + 1, screenHeight, dividerColor);
 
-        // Línea de impacto (Hit Line)
-        graphics.fill(boardStartX, hitLineY, boardStartX + boardWidth, hitLineY + 4, LaneTheme.HIT_LINE);
+        // Receptores según la forma de nota elegida
+        if (shape == VSRCraftSettings.NoteShape.BARS) {
+            graphics.fill(boardStartX, hitLineY, boardStartX + boardWidth, hitLineY + 4, LaneTheme.HIT_LINE);
+            for (int i = 0; i < laneCount; i++) {
+                boolean isPressed = lanePressed != null && i < lanePressed.length && lanePressed[i];
+                if (isPressed) {
+                    int laneX = boardStartX + (i * laneWidth);
+                    int laneColor = LaneTheme.getLaneColor(i, laneCount);
+                    graphics.fill(laneX + 2, hitLineY, laneX + laneWidth - 2, hitLineY + 4, laneColor);
+                }
+            }
+        } else {
+            // Línea guía sutil detrás de los receptores de círculo/flecha
+            graphics.fill(boardStartX, hitCenterY, boardStartX + boardWidth, hitCenterY + 1, 0x33FFFFFF);
+            for (int i = 0; i < laneCount; i++) {
+                int laneCenterX = boardStartX + (i * laneWidth) + (laneWidth / 2);
+                boolean isPressed = lanePressed != null && i < lanePressed.length && lanePressed[i];
+                int laneColor = LaneTheme.getLaneColor(i, laneCount);
+
+                if (shape == VSRCraftSettings.NoteShape.CIRCLES) {
+                    if (isPressed) {
+                        int fillAlpha = (laneColor & 0x00FFFFFF) | 0x55000000;
+                        NoteShapeRenderer.drawFilledCircle(graphics, laneCenterX, hitCenterY, receptorRadius, fillAlpha);
+                    }
+                    int ringColor = isPressed ? laneColor : 0xAAFFFFFF;
+                    NoteShapeRenderer.drawCircleOutline(graphics, laneCenterX, hitCenterY, receptorRadius, 2, ringColor);
+                } else {
+                    NoteShapeRenderer.ArrowDir dir = NoteShapeRenderer.getArrowDirection(i, laneCount);
+                    if (isPressed) {
+                        int fillAlpha = (laneColor & 0x00FFFFFF) | 0x66000000;
+                        NoteShapeRenderer.drawArrow(graphics, laneCenterX, hitCenterY, receptorRadius, dir, fillAlpha, false);
+                    }
+                    int outlineColor = isPressed ? laneColor : 0xAAFFFFFF;
+                    NoteShapeRenderer.drawArrow(graphics, laneCenterX, hitCenterY, receptorRadius, dir, outlineColor, true);
+                }
+            }
+        }
     }
 }
