@@ -116,17 +116,13 @@ public class NoteRenderer {
                 if (centerY + shapeRadius >= 0 && centerY - shapeRadius <= screenHeight) {
                     NoteShapeRenderer.drawFilledCircle(graphics, centerX, centerY, shapeRadius, noteColor);
                     // Anillo interior sutil estilo osu!mania
-                    int innerRingColor = isHolding ? 0xFFFFFFFF : 0x55FFFFFF;
-                    NoteShapeRenderer.drawCircleOutline(graphics, centerX, centerY, Math.max(3, shapeRadius - 2), 1, innerRingColor);
+                    NoteShapeRenderer.drawCircleOutline(graphics, centerX, centerY, Math.max(3, shapeRadius - 2), 1, 0x55FFFFFF);
                 }
             }
             case ARROWS -> {
                 if (centerY + shapeRadius >= 0 && centerY - shapeRadius <= screenHeight) {
                     NoteShapeRenderer.ArrowDir dir = NoteShapeRenderer.getArrowDirection(lane, laneCount);
                     NoteShapeRenderer.drawArrow(graphics, centerX, centerY, shapeRadius, dir, noteColor, false);
-                    if (isHolding) {
-                        NoteShapeRenderer.drawArrow(graphics, centerX, centerY, Math.max(3, shapeRadius - 3), dir, 0xCCFFFFFF, true);
-                    }
                 }
             }
             case BARS -> {
@@ -134,9 +130,6 @@ public class NoteRenderer {
                 int noteBottomY = noteTopY + noteHeight;
                 if (noteBottomY >= 0 && noteTopY <= screenHeight) {
                     graphics.fill(noteX, noteTopY, noteX + noteWidth, noteBottomY, noteColor);
-                    if (isHolding) {
-                        graphics.fill(noteX + 1, noteTopY + 1, noteX + noteWidth - 1, noteTopY + 3, 0xFFFFFFFF);
-                    }
                 }
             }
         }
