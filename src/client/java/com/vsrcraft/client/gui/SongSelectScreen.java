@@ -398,6 +398,50 @@ public class SongSelectScreen extends Screen {
     @Override
     public void onFilesDrop(List<Path> files) {
         if (files == null || files.isEmpty()) return;
+
+        BeatmapSet lastImportedSet = null;
+        int importedOszCount = 0;
+
+        for (Path path : files) {
+            String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+            if (name.endsWith(".osz")) {
+                try {
+                    BeatmapSet imported = BeatmapRepository.importOsz(path);
+                    if (imported != null) {
+                        lastImportedSet = imported;
+                        importedOszCount++;
+                    } else if (importedOszCount == 0) {
+                        showStatusMessage("El .osz no contiene mapas de osu!mania.", 0xFFFF6666);
+                    }
+                } catch (Exception e) {
+                    showStatusMessage("Error al importar .osz: " + e.getMessage(), 0xFFFF6666);
+                    return;
+                }
+            }
+        }
+
+        if (importedOszCount > 0 && lastImportedSet != null) {
+            this.allSets = BeatmapRepository.getBeatmapSets();
+            this.currentSearchQuery = "";
+            if (this.searchBox != null) {
+                this.searchBox.setValue("");
+            }
+            this.filteredSets = new ArrayList<>(this.allSets);
+            this.expandedSetId = lastImportedSet.getId();
+            this.selectedBeatmap = lastImportedSet.getDefaultBeatmap();
+            rebuildVisibleList();
+            ensureIndexVisible(this.selectedVisibleIndex);
+            this.scrollOffset = this.targetScrollOffset;
+            triggerPreviewForSelected();
+            saveSelectionState();
+
+            String msg = (importedOszCount == 1)
+                    ? "✔ Mapa importado: " + lastImportedSet.getTitle() + " (" + lastImportedSet.getDifficulties().size() + " dif.)"
+                    : "✔ " + importedOszCount + " mapas .osz importados";
+            showStatusMessage(msg, 0xFF55FF99);
+            return;
+        }
+
         for (Path path : files) {
             String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
             if (!name.endsWith(".osr")) continue;

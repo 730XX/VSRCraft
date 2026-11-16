@@ -7,7 +7,9 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,6 +17,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * Catálogo centralizado de Beatmaps y Canciones (BeatmapSets) de VSRCraft.
@@ -202,5 +206,83 @@ public class BeatmapRepository {
     public static File getExternalBeatmapsDir() {
         Path gameDir = FabricLoader.getInstance().getGameDir();
         return gameDir.resolve("vsrg_beatmaps").toFile();
+    }
+
+    /**
+     * Extrae un archivo .osz en .minecraft/vsrg_beatmaps/, recarga el catálogo
+     * y devuelve el BeatmapSet importado (o null si no contenía mapas de osu!mania).
+     */
+    public static synchronized BeatmapSet importOsz(Path oszPath) throws Exception {
+        if (oszPath == null || !Files.exists(oszPath)) {
+            throw new IllegalArgumentException("Archivo .osz no encontrado.");
+        }
+
+        String rawName = oszPath.getFileName().toString();
+        String baseName = rawName.toLowerCase(Locale.ROOT).endsWith(".osz")
+                ? rawName.substring(0, rawName.length() - 4)
+                : rawName;
+        String safeFolder = baseName.replaceAll("[^a-zA-Z0-9._ -]", "_").trim();
+        if (safeFolder.isEmpty()) {
+            safeFolder = "imported_" + System.currentTimeMillis();
+        }
+
+        Path targetDir = getExternalBeatmapsDir().toPath().resolve(safeFolder).normalize();
+        Files.createDirectories(targetDir);
+
+        List<String> extractedMd5s = new ArrayList<>();
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(oszPath))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    zis.closeEntry();
+                    continue;
+                }
+                String entryName = entry.getName();
+                String lower = entryName.toLowerCase(Locale.ROOT);
+                boolean isOsu = lower.endsWith(".osu");
+                boolean isAudio = lower.endsWith(".ogg") || lower.endsWith(".mp3") || lower.endsWith(".wav");
+                if (!isOsu && !isAudio) {
+                    zis.closeEntry();
+                    continue;
+                }
+
+                Path outPath = targetDir.resolve(entryName).normalize();
+                if (!outPath.startsWith(targetDir)) {
+                    zis.closeEntry();
+                    continue; // Protección contra Zip Slip
+                }
+                if (outPath.getParent() != null) {
+                    Files.createDirectories(outPath.getParent());
+                }
+
+                if (isOsu) {
+                    byte[] osuBytes = zis.readAllBytes();
+                    Files.write(outPath, osuBytes);
+                    MessageDigest md = MessageDigest.getInstance("MD5");
+                    byte[] digest = md.digest(osuBytes);
+                    StringBuilder hex = new StringBuilder(digest.length * 2);
+                    for (byte b : digest) {
+                        hex.append(String.format(Locale.ROOT, "%02x", b & 0xFF));
+                    }
+                    extractedMd5s.add(hex.toString());
+                } else {
+                    Files.copy(zis, outPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+                zis.closeEntry();
+            }
+        }
+
+        reload();
+
+        for (String md5 : extractedMd5s) {
+            Beatmap found = findByOsuMd5(md5);
+            if (found != null) {
+                BeatmapSet set = findSetForBeatmap(found);
+                if (set != null) {
+                    return set;
+                }
+            }
+        }
+        return null;
     }
 }
