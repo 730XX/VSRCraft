@@ -417,6 +417,8 @@ public class SongSelectScreen extends Screen {
                     showStatusMessage("El .osr no contiene eventos de teclas.", 0xFFFF6666);
                     return;
                 }
+                ReplayRepository.saveImportedOsr(path, replay);
+                updateReplayButtonState();
                 launchReplay(target, replay);
                 return;
             } catch (Exception e) {

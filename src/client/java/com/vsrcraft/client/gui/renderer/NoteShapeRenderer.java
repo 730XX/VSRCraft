@@ -182,10 +182,6 @@ public final class NoteShapeRenderer {
         int clampedBottom = Math.min(maxClipY, headY);
         if (clampedBottom > clampedTop) {
             g.fill(leftX, clampedTop, rightX, clampedBottom, bodyColor);
-            if (isHolding) {
-                g.fill(leftX - 1, clampedTop, leftX, clampedBottom, 0xCCFFFFFF);
-                g.fill(rightX, clampedTop, rightX + 1, clampedBottom, 0xCCFFFFFF);
-            }
         }
     }
 }

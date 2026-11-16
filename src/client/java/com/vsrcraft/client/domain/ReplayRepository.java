@@ -9,7 +9,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 
 /**
@@ -113,5 +115,21 @@ public class ReplayRepository {
             throw new IllegalArgumentException("No hay un beatmap destino para cargar el replay.");
         }
         return OsrReplayParser.parse(osrPath, targetBeatmap.getKeyCount(), targetBeatmap.getId());
+    }
+
+    public static void saveImportedOsr(Path sourceOsrPath, ReplayData parsedReplay) {
+        try {
+            File dir = getReplaysDir();
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            if (sourceOsrPath != null && Files.exists(sourceOsrPath)) {
+                Path destOsr = dir.toPath().resolve(sourceOsrPath.getFileName().toString());
+                Files.copy(sourceOsrPath, destOsr, StandardCopyOption.REPLACE_EXISTING);
+            }
+            saveBestReplay(parsedReplay);
+        } catch (Exception e) {
+            System.err.println("[VSRCraft] Error importando .osr: " + e.getMessage());
+        }
     }
 }
