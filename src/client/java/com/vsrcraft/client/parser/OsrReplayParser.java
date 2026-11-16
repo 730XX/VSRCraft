@@ -29,7 +29,8 @@ public final class OsrReplayParser {
 
     private OsrReplayParser() {}
 
-    public record OsrHeader(int gameMode, String beatmapMd5, String playerName, int score, int maxCombo, int mods) {}
+    public record OsrHeader(int gameMode, String beatmapMd5, String playerName, int score, int maxCombo, int mods,
+                            float accuracy, String rank) {}
 
     public static OsrHeader readHeader(Path osrPath) throws IOException {
         try (InputStream in = new BufferedInputStream(Files.newInputStream(osrPath))) {
@@ -61,9 +62,9 @@ public final class OsrReplayParser {
             ReplayData data = new ReplayData(
                     beatmapId != null ? beatmapId : "",
                     header.score(),
-                    100.0f,
+                    header.accuracy(),
                     header.maxCombo(),
-                    "OSR",
+                    header.rank(),
                     events
             );
             data.playerName = header.playerName();
@@ -80,19 +81,31 @@ public final class OsrReplayParser {
         String playerName = reader.readOsuString();
         reader.readOsuString(); // replayMd5
 
-        reader.readShort(); // n300
-        reader.readShort(); // n100
-        reader.readShort(); // n50
-        reader.readShort(); // nGeki
-        reader.readShort(); // nKatu
-        reader.readShort(); // nMiss
+        int n300 = reader.readUnsignedShort();
+        int n100 = reader.readUnsignedShort();
+        int n50 = reader.readUnsignedShort();
+        int nGeki = reader.readUnsignedShort();
+        int nKatu = reader.readUnsignedShort();
+        int nMiss = reader.readUnsignedShort();
 
         int score = reader.readInt();
         int maxCombo = reader.readUnsignedShort();
         reader.readUnsignedByte(); // perfect
         int mods = reader.readInt();
 
-        return new OsrHeader(gameMode, beatmapMd5, playerName, score, maxCombo, mods);
+        int totalJudged = n300 + nGeki + nKatu + n100 + n50 + nMiss;
+        float accuracy = totalJudged > 0
+                ? (float) ((300.0 * (n300 + nGeki) + 200.0 * nKatu + 100.0 * n100 + 50.0 * n50) / (300.0 * totalJudged) * 100.0)
+                : 100.0f;
+        String rank;
+        if (accuracy >= 99.995f && nMiss == 0) rank = "SS";
+        else if (accuracy >= 95.0f) rank = "S";
+        else if (accuracy >= 90.0f) rank = "A";
+        else if (accuracy >= 80.0f) rank = "B";
+        else if (accuracy >= 70.0f) rank = "C";
+        else rank = "D";
+
+        return new OsrHeader(gameMode, beatmapMd5, playerName, score, maxCombo, mods, accuracy, rank);
     }
 
     private static String decompressLzma(byte[] compressed) throws IOException {

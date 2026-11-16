@@ -86,6 +86,7 @@ public class SongSelectScreen extends Screen {
     private EditBox searchBox;
     private Button playButton;
     private Button replayButton;
+    private ReplayData selectedReplayMeta = null;
     private boolean transitioningToSubScreen = false;
     private boolean hasTriggeredInitialPreview = false;
     private final ScreenTransition transition = new ScreenTransition(300L);
@@ -269,8 +270,9 @@ public class SongSelectScreen extends Screen {
     }
 
     private void updateReplayButtonState() {
+        this.selectedReplayMeta = (this.selectedBeatmap != null) ? ReplayRepository.loadReplay(this.selectedBeatmap) : null;
         if (this.replayButton != null) {
-            this.replayButton.active = ReplayRepository.hasReplay(this.selectedBeatmap);
+            this.replayButton.active = (this.selectedReplayMeta != null);
         }
     }
 
@@ -583,9 +585,8 @@ public class SongSelectScreen extends Screen {
             drawBorder(g, innerX, yCursor, maxTextW, recordBoxH, 0xFF1F2B40);
 
             VSRCraftSettings.BeatmapRecord record = VSRCraftSettings.get().getPersonalBest(map.getId());
-            g.drawString(this.font, "§7RÉCORD PERSONAL", innerX + 6, yCursor + 5, 0xFF8899AA, false);
-
             if (record != null && record.bestScore > 0) {
+                g.drawString(this.font, "§7RÉCORD PERSONAL", innerX + 6, yCursor + 5, 0xFF8899AA, false);
                 int rankColor = getRankColor(record.bestRank);
                 String rankLabel = "§l" + record.bestRank;
                 int rankW = this.font.width(rankLabel);
@@ -598,7 +599,27 @@ public class SongSelectScreen extends Screen {
                     String accComboLine = String.format(Locale.ROOT, "Acc: %.2f%%  •  Combo: %dx", record.bestAccuracy, record.bestCombo);
                     g.drawString(this.font, accComboLine, innerX + 6, yCursor + 28, 0xFF80DEEA, false);
                 }
+            } else if (this.selectedReplayMeta != null) {
+                String headerLabel = (this.selectedReplayMeta.playerName != null && !this.selectedReplayMeta.playerName.isEmpty())
+                        ? "§eREPLAY // " + ellipsize(this.selectedReplayMeta.playerName, maxTextW - 70)
+                        : "§eREPLAY GUARDADO";
+                g.drawString(this.font, headerLabel, innerX + 6, yCursor + 5, 0xFFFFD54F, false);
+
+                int rankColor = getRankColor(this.selectedReplayMeta.rank);
+                String rankLabel = "§l" + this.selectedReplayMeta.rank;
+                int rankW = this.font.width(rankLabel);
+                g.drawString(this.font, rankLabel, innerX + maxTextW - 8 - rankW, yCursor + 5, rankColor, true);
+
+                String scoreLine = String.format(Locale.ROOT, "Score: %,d", this.selectedReplayMeta.score);
+                g.drawString(this.font, scoreLine, innerX + 6, yCursor + 17, 0xFFFFFFFF, false);
+
+                if (recordBoxH >= 42) {
+                    String accComboLine = String.format(Locale.ROOT, "Acc: %.2f%%  •  Combo: %dx",
+                            this.selectedReplayMeta.accuracy, this.selectedReplayMeta.maxCombo);
+                    g.drawString(this.font, accComboLine, innerX + 6, yCursor + 28, 0xFF80DEEA, false);
+                }
             } else {
+                g.drawString(this.font, "§7RÉCORD PERSONAL", innerX + 6, yCursor + 5, 0xFF8899AA, false);
                 g.drawString(this.font, "Sin récord registrado aún", innerX + 6, yCursor + 18, 0xFF666677, false);
             }
         }
