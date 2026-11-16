@@ -56,6 +56,11 @@ public class RhythmGameScreen extends Screen {
     private final HitEffectRenderer hitEffects = new HitEffectRenderer();
     private final KeyOverlayRenderer keyOverlay;
 
+    private static final int PROGRESS_BAR_X = 12;
+    private static final int PROGRESS_BAR_Y = 38;
+    private static final int PROGRESS_BAR_W = 140;
+    private static final int PROGRESS_BAR_H = 5;
+
     // Grabación y Reproducción de Replays
     private final ReplayData activeReplay;
     private final float playbackRate;
@@ -314,12 +319,13 @@ public class RhythmGameScreen extends Screen {
         // 4b. Visualizador de teclas y KPS (Key Overlay / JKPS) abajo a la derecha
         this.keyOverlay.render(guiGraphics, this.font, this.laneKeys, this.lanePressed, this.width, this.height);
 
-        // Metadata de la canción y estado arriba a la izquierda
-        String status = currentSongTimeLong < 0
-                ? "PREPARATE (" + (-currentSongTimeLong / 1000 + 1) + "s)"
-                : (currentSongTimeLong / 1000) + "s / " + (engine.getBeatmap().getDurationMs() / 1000) + "s";
-        String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getVersion() + "] - " + status;
+        // Metadata de la canción arriba a la izquierda (sin segundos, con barra de progreso compacta debajo del Score)
+        String songInfo = engine.getBeatmap().getTitle() + " [" + engine.getBeatmap().getVersion() + "]";
+        if (currentSongTimeLong < 0) {
+            songInfo += " - PREPARATE (" + (-currentSongTimeLong / 1000 + 1) + "s)";
+        }
         guiGraphics.drawString(this.font, songInfo, 12, 10, 0xFFE0E0E0, true);
+        renderSongProgressBar(guiGraphics, currentSongTimeLong, mouseX, mouseY);
         if (isReplayMode()) {
             String replayLabel = "§e§l▶ MODO REPLAY";
             if (this.activeReplay.playerName != null && !this.activeReplay.playerName.isEmpty()) {
@@ -459,6 +465,83 @@ public class RhythmGameScreen extends Screen {
             int hintW = this.font.width(hints[i]);
             g.drawString(this.font, hints[i], optX + optW - hintW - 10, optY + 11, active ? accent : 0xFF667788, false);
         }
+    }
+
+    private void renderSongProgressBar(GuiGraphics g, long currentSongTimeLong, int mouseX, int mouseY) {
+        long durationMs = Math.max(1L, this.engine.getBeatmap().getDurationMs());
+        double progress = Math.max(0.0, Math.min(1.0, currentSongTimeLong / (double) durationMs));
+        int pctDone = (int) Math.round(progress * 100.0);
+        int pctRemaining = Math.max(0, 100 - pctDone);
+
+        boolean hoverSeek = isReplayMode() && !this.pauseMenuOpen && !this.engine.isFailed()
+                && mouseX >= PROGRESS_BAR_X - 4 && mouseX <= PROGRESS_BAR_X + PROGRESS_BAR_W + 4
+                && mouseY >= PROGRESS_BAR_Y - 5 && mouseY <= PROGRESS_BAR_Y + PROGRESS_BAR_H + 5;
+
+        int barColor = isReplayMode() ? 0xFFFFD54F : 0xFF00E5FF;
+        int borderColor = hoverSeek ? 0xFFFFFFFF : 0xFF2B3A55;
+
+        g.fill(PROGRESS_BAR_X, PROGRESS_BAR_Y, PROGRESS_BAR_X + PROGRESS_BAR_W, PROGRESS_BAR_Y + PROGRESS_BAR_H, 0xB80B0F17);
+        g.fill(PROGRESS_BAR_X, PROGRESS_BAR_Y, PROGRESS_BAR_X + PROGRESS_BAR_W, PROGRESS_BAR_Y + 1, borderColor);
+        g.fill(PROGRESS_BAR_X, PROGRESS_BAR_Y + PROGRESS_BAR_H - 1, PROGRESS_BAR_X + PROGRESS_BAR_W, PROGRESS_BAR_Y + PROGRESS_BAR_H, borderColor);
+        g.fill(PROGRESS_BAR_X, PROGRESS_BAR_Y, PROGRESS_BAR_X + 1, PROGRESS_BAR_Y + PROGRESS_BAR_H, borderColor);
+        g.fill(PROGRESS_BAR_X + PROGRESS_BAR_W - 1, PROGRESS_BAR_Y, PROGRESS_BAR_X + PROGRESS_BAR_W, PROGRESS_BAR_Y + PROGRESS_BAR_H, borderColor);
+
+        int fillW = Math.max(0, Math.min(PROGRESS_BAR_W - 2, (int) Math.round((PROGRESS_BAR_W - 2) * progress)));
+        if (fillW > 0) {
+            g.fill(PROGRESS_BAR_X + 1, PROGRESS_BAR_Y + 1, PROGRESS_BAR_X + 1 + fillW, PROGRESS_BAR_Y + PROGRESS_BAR_H - 1, barColor);
+        }
+
+        if (hoverSeek) {
+            int hoverX = Math.max(PROGRESS_BAR_X + 1, Math.min(PROGRESS_BAR_X + PROGRESS_BAR_W - 2, mouseX));
+            g.fill(hoverX, PROGRESS_BAR_Y - 1, hoverX + 1, PROGRESS_BAR_Y + PROGRESS_BAR_H + 1, 0xFFFFFFFF);
+        }
+
+        String pctText = String.format("-%d%%", pctRemaining);
+        g.drawString(this.font, pctText, PROGRESS_BAR_X + PROGRESS_BAR_W + 6, PROGRESS_BAR_Y - 1, hoverSeek ? 0xFFFFFFFF : 0xFF99AABB, false);
+    }
+
+    private void seekReplayTo(long targetSongMs) {
+        if (!isReplayMode() || this.clearTriggered || this.transition.isExiting()) return;
+
+        long durationMs = Math.max(1L, this.engine.getBeatmap().getDurationMs());
+        long clampedTarget = Math.max(0L, Math.min(durationMs - 50L, targetSongMs));
+
+        if (!this.musicStarted) {
+            AudioManager.startPreloadedMusic();
+            this.musicStarted = true;
+        }
+
+        this.engine.start(0);
+        this.hitEffects.clear();
+        this.keyOverlay.reset();
+        Arrays.fill(this.lanePressed, false);
+        this.replayCursor = 0;
+
+        if (this.activeReplay.events != null) {
+            List<ReplayData.ReplayEvent> events = this.activeReplay.events;
+            while (this.replayCursor < events.size()) {
+                ReplayData.ReplayEvent ev = events.get(this.replayCursor);
+                if (ev.timeMs > clampedTarget) {
+                    break;
+                }
+                this.replayCursor++;
+                if (ev.lane < 0 || ev.lane >= this.keyCount) continue;
+
+                this.engine.update(ev.timeMs);
+                this.lanePressed[ev.lane] = ev.pressed;
+                if (ev.pressed) {
+                    this.engine.onLanePressed(ev.lane, ev.timeMs);
+                } else {
+                    this.engine.onLaneReleased(ev.lane, ev.timeMs);
+                }
+            }
+        }
+
+        this.engine.update(clampedTarget);
+        this.engine.drainVisualEvents();
+
+        long audioTargetMs = Math.max(0L, clampedTarget - VSRCraftSettings.get().globalAudioOffsetMs);
+        AudioManager.seekMusic(audioTargetMs);
     }
 
     private void renderHpBar(GuiGraphics g, int barX, int hitLineY) {
@@ -686,6 +769,15 @@ public class RhythmGameScreen extends Screen {
                 }
             }
             return true;
+        }
+        if (isReplayMode() && !this.pauseMenuOpen && !engine.isFailed() && !this.clearTriggered && event.button() == 0) {
+            if (event.x() >= PROGRESS_BAR_X - 4 && event.x() <= PROGRESS_BAR_X + PROGRESS_BAR_W + 4
+                    && event.y() >= PROGRESS_BAR_Y - 5 && event.y() <= PROGRESS_BAR_Y + PROGRESS_BAR_H + 5) {
+                double ratio = Math.max(0.0, Math.min(0.995, (event.x() - PROGRESS_BAR_X) / (double) PROGRESS_BAR_W));
+                long durationMs = Math.max(1L, this.engine.getBeatmap().getDurationMs());
+                seekReplayTo(Math.round(ratio * durationMs));
+                return true;
+            }
         }
         return super.mouseClicked(event, bl);
     }

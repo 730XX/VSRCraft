@@ -328,6 +328,28 @@ public class AudioManager {
         musicFinished = false;
     }
 
+    public static synchronized void seekMusic(long songTimeMs) {
+        if (!ensureMusicReady() || musicSourceId == 0) return;
+
+        float rate = Math.max(0.5f, musicPlaybackRate);
+        double clampedSongMs = Math.max(0.0, Math.min(Math.max(0.0, musicDurationMs - 50.0), (double) songTimeMs));
+        float realSeconds = (float) ((clampedSongMs / 1000.0) / rate);
+
+        AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, realSeconds);
+        int state = AL10.alGetSourcei(musicSourceId, AL10.AL_SOURCE_STATE);
+        if (!musicPaused && state != AL10.AL_PLAYING) {
+            AL10.alSourcePlay(musicSourceId);
+        }
+
+        lastSampleOffset = Math.round(realSeconds * musicSampleRate);
+        lastHardwareTimeMs = clampedSongMs;
+        lastHardwareUpdateNano = System.nanoTime();
+        lastReturnedTimeMs = clampedSongMs;
+        musicFinishedNano = 0L;
+        musicPlaying = true;
+        musicFinished = false;
+    }
+
     public static synchronized void pauseMusic() {
         if (musicPlaying && musicSourceId != 0 && !musicPaused) {
             AL10.alSourcePause(musicSourceId);
