@@ -58,7 +58,7 @@ public class HitEffectRenderer {
         this.lastUpdateNano = System.nanoTime();
     }
 
-    public void spawnHitEffect(int lane, Judgement judgement, int boardStartX, int hitLineY) {
+    public void spawnHitEffect(int lane, int laneCount, Judgement judgement, int boardStartX, int hitLineY) {
         if (!VSRCraftSettings.get().enableHitEffects || judgement == null || lane < 0) {
             return;
         }
@@ -78,7 +78,8 @@ public class HitEffectRenderer {
             default -> 0;
         };
 
-        int laneCenterX = boardStartX + (lane * RhythmConfig.LANE_WIDTH) + (RhythmConfig.LANE_WIDTH / 2);
+        int laneWidth = RhythmConfig.getLaneWidth(laneCount);
+        int laneCenterX = boardStartX + (lane * laneWidth) + (laneWidth / 2);
         int spawnY = hitLineY + 4;
         long now = System.nanoTime();
         ThreadLocalRandom rng = ThreadLocalRandom.current();
@@ -107,7 +108,7 @@ public class HitEffectRenderer {
                 this.sparks.remove(0);
             }
             VoxelSpark s = new VoxelSpark();
-            s.x = laneCenterX + rng.nextFloat(-RhythmConfig.LANE_WIDTH * 0.36f, RhythmConfig.LANE_WIDTH * 0.36f);
+            s.x = laneCenterX + rng.nextFloat(-laneWidth * 0.36f, laneWidth * 0.36f);
             s.y = spawnY + rng.nextFloat(0.0f, 3.0f);
             s.vx = rng.nextFloat(-65.0f, 65.0f);
             s.vy = rng.nextFloat(25.0f, 95.0f);
@@ -121,7 +122,7 @@ public class HitEffectRenderer {
         }
     }
 
-    public void spawnHoldTick(int lane, int boardStartX, int hitLineY) {
+    public void spawnHoldTick(int lane, int laneCount, int boardStartX, int hitLineY) {
         if (!VSRCraftSettings.get().enableHitEffects || lane < 0 || lane >= this.lastHoldSparkNano.length) {
             return;
         }
@@ -136,10 +137,11 @@ public class HitEffectRenderer {
         }
 
         ThreadLocalRandom rng = ThreadLocalRandom.current();
-        int laneCenterX = boardStartX + (lane * RhythmConfig.LANE_WIDTH) + (RhythmConfig.LANE_WIDTH / 2);
+        int laneWidth = RhythmConfig.getLaneWidth(laneCount);
+        int laneCenterX = boardStartX + (lane * laneWidth) + (laneWidth / 2);
 
         VoxelSpark s = new VoxelSpark();
-        s.x = laneCenterX + rng.nextFloat(-RhythmConfig.LANE_WIDTH * 0.30f, RhythmConfig.LANE_WIDTH * 0.30f);
+        s.x = laneCenterX + rng.nextFloat(-laneWidth * 0.30f, laneWidth * 0.30f);
         s.y = hitLineY + 4;
         s.vx = rng.nextFloat(-40.0f, 40.0f);
         s.vy = rng.nextFloat(30.0f, 70.0f);
@@ -159,6 +161,7 @@ public class HitEffectRenderer {
         float dtSec = (float) Math.min(0.05, Math.max(0.0, (now - this.lastUpdateNano) / 1_000_000_000.0));
         this.lastUpdateNano = now;
 
+        int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         // 1. Parpadeo rojo tenue en la base del carril tras un MISS
         int baseTop = hitLineY + 4;
         if (baseTop < screenHeight) {
@@ -173,8 +176,8 @@ public class HitEffectRenderer {
                 float alphaNorm = 1.0f - (float) (elapsedMs / MISS_FLASH_DURATION_MS);
                 int alpha = Math.round(alphaNorm * alphaNorm * 90.0f); // Max ~35% opacidad, muy sutil
                 if (alpha > 0) {
-                    int lx = boardStartX + (lane * RhythmConfig.LANE_WIDTH) + 1;
-                    int lw = RhythmConfig.LANE_WIDTH - 1;
+                    int lx = boardStartX + (lane * laneWidth) + 1;
+                    int lw = laneWidth - 1;
                     graphics.fill(lx, baseTop, lx + lw, screenHeight, (alpha << 24) | 0xFF1744);
                 }
             }

@@ -17,6 +17,7 @@ public class NoteRenderer {
         int hitCenterY = hitLineY + 2; // Centro de la línea de impacto (grosor 4px)
         int noteHeight = RhythmConfig.getNoteHeight();
         float scrollSpeed = RhythmConfig.getScrollSpeed();
+        int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         int halfNote = noteHeight / 2;
 
         for (Note note : notes) {
@@ -33,8 +34,8 @@ public class NoteRenderer {
                 if (currentSongTimeMs >= endOffsetMs + 100) continue;
             }
 
-            int noteX = boardStartX + (note.getLane() * RhythmConfig.LANE_WIDTH) + 2;
-            int noteWidth = RhythmConfig.LANE_WIDTH - 4;
+            int noteX = boardStartX + (note.getLane() * laneWidth) + 2;
+            int noteWidth = laneWidth - 4;
             int baseColor = LaneTheme.getLaneColor(note.getLane(), laneCount);
 
             boolean isHolding = note.isHolding();

@@ -209,7 +209,7 @@ public class RhythmGameScreen extends Screen {
             engine.update(currentSongTimeLong);
         }
 
-        int boardWidth = keyCount * RhythmConfig.LANE_WIDTH;
+        int boardWidth = keyCount * RhythmConfig.getLaneWidth(keyCount);
         int boardStartX = (this.width - boardWidth) / 2;
         int hitLineY = this.height - RhythmConfig.getHitLineOffsetBottom();
 
@@ -222,11 +222,11 @@ public class RhythmGameScreen extends Screen {
         // 2b. Efectos de golpe "Voxel Sparks" (chispas cúbicas debajo de la línea de impacto)
         if (!isPaused && !engine.isFailed()) {
             for (RhythmEngine.HitEvent ev : engine.drainVisualEvents()) {
-                this.hitEffects.spawnHitEffect(ev.lane(), ev.judgement(), boardStartX, hitLineY);
+                this.hitEffects.spawnHitEffect(ev.lane(), keyCount, ev.judgement(), boardStartX, hitLineY);
             }
             for (int lane = 0; lane < keyCount; lane++) {
                 if (engine.isLaneHolding(lane)) {
-                    this.hitEffects.spawnHoldTick(lane, boardStartX, hitLineY);
+                    this.hitEffects.spawnHoldTick(lane, keyCount, boardStartX, hitLineY);
                 }
             }
         }

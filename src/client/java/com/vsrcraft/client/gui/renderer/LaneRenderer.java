@@ -15,12 +15,13 @@ public class LaneRenderer {
         int dividerColor = LaneTheme.getLaneDividerColor();
         boolean allowGlow = VSRCraftSettings.get().enableLaneGlow;
 
+        int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         for (int i = 0; i < laneCount; i++) {
-            int laneX = boardStartX + (i * RhythmConfig.LANE_WIDTH);
+            int laneX = boardStartX + (i * laneWidth);
             graphics.fill(laneX, 0, laneX + 1, screenHeight, dividerColor);
 
             if (allowGlow && lanePressed != null && i < lanePressed.length && lanePressed[i]) {
-                graphics.fill(laneX + 1, 0, laneX + RhythmConfig.LANE_WIDTH, screenHeight, LaneTheme.LANE_PRESS_GLOW);
+                graphics.fill(laneX + 1, 0, laneX + laneWidth, screenHeight, LaneTheme.LANE_PRESS_GLOW);
             }
         }
         graphics.fill(boardStartX + boardWidth, 0, boardStartX + boardWidth + 1, screenHeight, dividerColor);

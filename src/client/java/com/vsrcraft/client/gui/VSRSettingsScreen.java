@@ -304,6 +304,46 @@ public class VSRSettingsScreen extends Screen {
                 settings.noteHeight = 6 + (int) Math.round(this.value * 18.0);
             }
         });
+
+        // Sliders independientes: Ancho de Carril 4K (28..70px) y 7K (22..60px)
+        int halfW = (w - 6) / 2;
+        int widthRowY = startY + (row++ * spacing);
+
+        double w4Norm = (settings.laneWidth4K - 28.0) / (70.0 - 28.0);
+        this.addRenderableWidget(new AbstractSliderButton(
+                x, widthRowY, halfW, 20,
+                Component.literal("Ancho 4K: " + settings.laneWidth4K + " px"),
+                Math.max(0.0, Math.min(1.0, w4Norm))
+        ) {
+            @Override
+            protected void updateMessage() {
+                int px = 28 + (int) Math.round(this.value * 42.0);
+                this.setMessage(Component.literal("Ancho 4K: " + px + " px"));
+            }
+            @Override
+            protected void applyValue() {
+                settings.laneWidth4K = 28 + (int) Math.round(this.value * 42.0);
+                VSRSettingsScreen.this.editingKeyMode = 4;
+            }
+        });
+
+        double w7Norm = (settings.laneWidth7K - 22.0) / (60.0 - 22.0);
+        this.addRenderableWidget(new AbstractSliderButton(
+                x + halfW + 6, widthRowY, halfW, 20,
+                Component.literal("Ancho 7K: " + settings.laneWidth7K + " px"),
+                Math.max(0.0, Math.min(1.0, w7Norm))
+        ) {
+            @Override
+            protected void updateMessage() {
+                int px = 22 + (int) Math.round(this.value * 38.0);
+                this.setMessage(Component.literal("Ancho 7K: " + px + " px"));
+            }
+            @Override
+            protected void applyValue() {
+                settings.laneWidth7K = 22 + (int) Math.round(this.value * 38.0);
+                VSRSettingsScreen.this.editingKeyMode = 7;
+            }
+        });
     }
 
     private void initVisualTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
@@ -410,8 +450,9 @@ public class VSRSettingsScreen extends Screen {
         s.scrollSpeed = 0.5f;
         s.hitPositionOffsetBottom = 60;
         s.noteHeight = 12;
+        s.laneWidth4K = 45;
+        s.laneWidth7K = 36;
         s.laneAlpha = 0.8f;
-        s.enableLaneGlow = false;
         s.enableLaneGlow = false;
         s.enableHitEffects = true;
         s.backgroundDim = 0.6f;
@@ -546,7 +587,8 @@ public class VSRSettingsScreen extends Screen {
         int trackAreaH = trackAreaBottom - trackAreaTop;
 
         int keyCount = this.editingKeyMode;
-        int laneW = (keyCount == 4) ? 30 : 22;
+        int configuredLaneW = RhythmConfig.getLaneWidth(keyCount);
+        int laneW = Math.max(14, Math.min((rightPanelW - 16) / keyCount, Math.round(configuredLaneW * 0.72f)));
         int boardW = keyCount * laneW;
         int boardStartX = rightPanelX + (rightPanelW - boardW) / 2;
 
@@ -582,7 +624,7 @@ public class VSRSettingsScreen extends Screen {
         }
 
         // 2. Línea de Impacto
-        g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, 0xFFFFCC00);
+        g.fill(boardStartX, hitLineY, boardStartX + boardW, hitLineY + 3, LaneTheme.HIT_LINE);
 
         // 3. Notas en bucle continuo a la velocidad y grosor configurados
         long now = System.currentTimeMillis();

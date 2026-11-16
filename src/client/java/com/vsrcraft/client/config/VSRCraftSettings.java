@@ -42,10 +42,12 @@ public class VSRCraftSettings {
     public boolean enableHitSounds = true; // Hitsounds activados por defecto
     public long globalAudioOffsetMs = 0L;  // Offset en ms
 
-    // 2. Jugabilidad / Scroll / HitPosition
+    // 2. Jugabilidad / Scroll / HitPosition / Ancho de Carriles
     public float scrollSpeed = 0.5f;       // Píxeles por ms (Mania ~2.5)
     public int noteHeight = 12;            // Grosor de notas (px)
     public int hitPositionOffsetBottom = 60; // Distancia de la línea de impacto al fondo (px)
+    public int laneWidth4K = 45;           // Ancho de cada carril en modo 4K (px)
+    public int laneWidth7K = 36;           // Ancho de cada carril en modo 7K (px)
 
     // 3. Estética / Pista
     public float laneAlpha = 0.8f;         // Opacidad de pista (0.0 = transparente, 1.0 = opaco)
@@ -119,6 +121,12 @@ public class VSRCraftSettings {
             }
             if (instance.hitPositionOffsetBottom <= 0) {
                 instance.hitPositionOffsetBottom = 60;
+            }
+            if (instance.laneWidth4K < 20) {
+                instance.laneWidth4K = 45;
+            }
+            if (instance.laneWidth7K < 16) {
+                instance.laneWidth7K = 36;
             }
             if (instance.personalBests == null) {
                 instance.personalBests = new HashMap<>();
