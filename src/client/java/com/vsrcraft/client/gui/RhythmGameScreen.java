@@ -43,6 +43,8 @@ public class RhythmGameScreen extends Screen {
     private long startNanoTime = -1;
     private boolean musicStarted = false;
     private boolean isPaused = false;
+    private boolean pauseMenuOpen = false;
+    private int pauseSelectedIdx = 0;
     private long pausedNanoTime = 0L;
 
     // Barra de Vida / HP y Resultados
@@ -113,8 +115,8 @@ public class RhythmGameScreen extends Screen {
 
         if (!this.sessionInitialized) {
             startSession();
-        } else if (this.isPaused) {
-            // Reanudando desde la pantalla de ajustes
+        } else if (this.isPaused && !this.pauseMenuOpen) {
+            // Reanudando desde la pantalla de ajustes abierta directamente con 'O' o el engranaje
             this.isPaused = false;
             long pausedDuration = System.nanoTime() - this.pausedNanoTime;
             this.startNanoTime += pausedDuration;
@@ -158,6 +160,9 @@ public class RhythmGameScreen extends Screen {
         this.sessionInitialized = true;
         this.startNanoTime = System.nanoTime();
         this.musicStarted = false;
+        this.isPaused = false;
+        this.pauseMenuOpen = false;
+        this.pauseSelectedIdx = 0;
         this.smoothHp = 100.0f;
         this.failTriggered = false;
         this.clearTriggered = false;
@@ -178,12 +183,46 @@ public class RhythmGameScreen extends Screen {
         startSession();
     }
 
-    private void openSettingsScreen() {
-        if (engine.isFailed()) return;
+    private void openPauseMenu() {
+        if (engine.isFailed() || this.clearTriggered || this.transition.isExiting() || this.pauseMenuOpen) return;
+        this.pauseMenuOpen = true;
+        this.pauseSelectedIdx = 0;
         this.isPaused = true;
         this.pausedNanoTime = System.nanoTime();
+        Arrays.fill(this.lanePressed, false);
         if (this.musicStarted) {
             AudioManager.pauseMusic();
+        }
+    }
+
+    private void resumeFromPause() {
+        if (!this.pauseMenuOpen) return;
+        this.pauseMenuOpen = false;
+        this.isPaused = false;
+        long pausedDuration = System.nanoTime() - this.pausedNanoTime;
+        this.startNanoTime += pausedDuration;
+        if (this.musicStarted && !engine.isFailed()) {
+            AudioManager.resumeMusic();
+        }
+    }
+
+    private void activatePauseOption(int index) {
+        switch (index) {
+            case 0 -> resumeFromPause();
+            case 1 -> restartSession();
+            case 2 -> openSettingsScreen();
+            case 3 -> this.onClose();
+        }
+    }
+
+    private void openSettingsScreen() {
+        if (engine.isFailed()) return;
+        if (!this.isPaused) {
+            this.isPaused = true;
+            this.pausedNanoTime = System.nanoTime();
+            if (this.musicStarted) {
+                AudioManager.pauseMusic();
+            }
         }
         if (this.minecraft != null) {
             this.minecraft.setScreen(new VSRSettingsScreen(this));
@@ -298,7 +337,7 @@ public class RhythmGameScreen extends Screen {
 
         // Mensaje de ayuda abajo a la izquierda
         String offsetStr = (VSRCraftSettings.get().globalAudioOffsetMs >= 0 ? "+" : "") + VSRCraftSettings.get().globalAudioOffsetMs + "ms";
-        String help = String.format("ESC: Volver a Canciones | Scroll: %.2fx | Offset: %s | HitPos: %dpx",
+        String help = String.format("ESC: Pausa | ~: Reiniciar | Scroll: %.2fx | Offset: %s | HitPos: %dpx",
                 VSRCraftSettings.get().scrollSpeed, offsetStr, RhythmConfig.getHitLineOffsetBottom());
         guiGraphics.drawString(this.font, help, 12, this.height - 18, 0xFF777777, false);
 
@@ -349,10 +388,77 @@ public class RhythmGameScreen extends Screen {
             });
         }
 
+        if (this.pauseMenuOpen) {
+            renderPauseOverlay(guiGraphics, mouseX, mouseY);
+        }
+
         if (this.transition.isExiting()) {
             AudioManager.updatePreview();
         }
         this.transition.renderOverlay(guiGraphics, this.width, this.height);
+    }
+
+    private void renderPauseOverlay(GuiGraphics g, int mouseX, int mouseY) {
+        // Fondo oscurecido elegante
+        g.fill(0, 0, this.width, this.height, 0xB8060910);
+
+        int cardW = 248;
+        int cardH = 216;
+        int cardX = (this.width - cardW) / 2;
+        int cardY = (this.height - cardH) / 2;
+
+        // Tarjeta principal estilo VSRCraft
+        g.fill(cardX, cardY, cardX + cardW, cardY + cardH, 0xEB0E1420);
+        g.fill(cardX, cardY, cardX + cardW, cardY + 2, 0xFF00E5FF);
+        g.fill(cardX, cardY + cardH - 1, cardX + cardW, cardY + cardH, 0xFF26334D);
+        g.fill(cardX, cardY, cardX + 1, cardY + cardH, 0xFF26334D);
+        g.fill(cardX + cardW - 1, cardY, cardX + cardW, cardY + cardH, 0xFF26334D);
+
+        String title = isReplayMode() ? "§e§lREPLAY EN PAUSA" : "§b§lPAUSA";
+        g.drawCenteredString(this.font, title, this.width / 2, cardY + 14, 0xFFFFFFFF);
+        String subtitle = this.engine.getBeatmap().getTitle() + " [" + this.engine.getBeatmap().getVersion() + "]";
+        if (this.font.width(subtitle) > cardW - 24) {
+            subtitle = this.font.plainSubstrByWidth(subtitle, cardW - 30) + "...";
+        }
+        g.drawCenteredString(this.font, subtitle, this.width / 2, cardY + 29, 0xFF8CA0B8);
+        g.fill(cardX + 16, cardY + 44, cardX + cardW - 16, cardY + 45, 0x33FFFFFF);
+
+        String[] labels = {"▶  CONTINUAR", "↻  REINTENTAR", "⚙  CONFIGURACIÓN", "✕  SALIR"};
+        String[] hints = {"ESC", "R", "O", "Q"};
+        int[] accents = {0xFF00E5FF, 0xFF55FF99, 0xFFFFCA28, 0xFFFF5566};
+
+        int optX = cardX + 18;
+        int optW = cardW - 36;
+        int optH = 30;
+        int optGap = 8;
+        int firstOptY = cardY + 56;
+
+        for (int i = 0; i < labels.length; i++) {
+            int optY = firstOptY + i * (optH + optGap);
+            boolean hovered = mouseX >= optX && mouseX <= optX + optW && mouseY >= optY && mouseY <= optY + optH;
+            if (hovered) {
+                this.pauseSelectedIdx = i;
+            }
+            boolean active = (this.pauseSelectedIdx == i);
+            int accent = accents[i];
+
+            int bg = active ? 0xE61D2B42 : 0xCC131B2A;
+            int border = active ? accent : 0xFF26334D;
+
+            g.fill(optX, optY, optX + optW, optY + optH, bg);
+            // Barra lateral de acento
+            g.fill(optX, optY, optX + (active ? 4 : 2), optY + optH, accent);
+            // Borde sutil
+            g.fill(optX, optY, optX + optW, optY + 1, border);
+            g.fill(optX, optY + optH - 1, optX + optW, optY + optH, border);
+            g.fill(optX + optW - 1, optY, optX + optW, optY + optH, border);
+
+            int textColor = active ? 0xFFFFFFFF : 0xFFCBD6E2;
+            g.drawString(this.font, labels[i], optX + 12, optY + 11, textColor, active);
+
+            int hintW = this.font.width(hints[i]);
+            g.drawString(this.font, hints[i], optX + optW - hintW - 10, optY + 11, active ? accent : 0xFF667788, false);
+        }
     }
 
     private void renderHpBar(GuiGraphics g, int barX, int hitLineY) {
@@ -456,6 +562,49 @@ public class RhythmGameScreen extends Screen {
             return true;
         }
 
+        if (this.pauseMenuOpen) {
+            if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+                resumeFromPause();
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_UP || event.key() == GLFW.GLFW_KEY_W) {
+                this.pauseSelectedIdx = (this.pauseSelectedIdx + 3) % 4;
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_DOWN || event.key() == GLFW.GLFW_KEY_S) {
+                this.pauseSelectedIdx = (this.pauseSelectedIdx + 1) % 4;
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER || event.key() == GLFW.GLFW_KEY_SPACE) {
+                activatePauseOption(this.pauseSelectedIdx);
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_R) {
+                restartSession();
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_O) {
+                openSettingsScreen();
+                return true;
+            }
+            if (event.key() == GLFW.GLFW_KEY_Q) {
+                this.onClose();
+                return true;
+            }
+            return true;
+        }
+
+        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+            openPauseMenu();
+            return true;
+        }
+
+        if (event.key() == GLFW.GLFW_KEY_GRAVE_ACCENT
+                || (event.key() == GLFW.GLFW_KEY_R && (event.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0)) {
+            restartSession();
+            return true;
+        }
+
         if (event.key() == GLFW.GLFW_KEY_O) {
             openSettingsScreen();
             return true;
@@ -527,6 +676,31 @@ public class RhythmGameScreen extends Screen {
         return super.keyReleased(event);
     }
 
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
+        if (this.pauseMenuOpen && event.button() == 0) {
+            int cardW = 248;
+            int cardH = 216;
+            int cardX = (this.width - cardW) / 2;
+            int cardY = (this.height - cardH) / 2;
+            int optX = cardX + 18;
+            int optW = cardW - 36;
+            int optH = 30;
+            int optGap = 8;
+            int firstOptY = cardY + 56;
+
+            for (int i = 0; i < 4; i++) {
+                int optY = firstOptY + i * (optH + optGap);
+                if (event.x() >= optX && event.x() <= optX + optW && event.y() >= optY && event.y() <= optY + optH) {
+                    activatePauseOption(i);
+                    return true;
+                }
+            }
+            return true;
+        }
+        return super.mouseClicked(event, bl);
+    }
+
     private void saveSessionRecordIfValid() {
         if (engine.isFailed() || isReplayMode()) return; // No registrar récord si el mapa fue fallado o es un Replay
         ScoreTracker tracker = this.engine.getScoreTracker();
@@ -544,6 +718,8 @@ public class RhythmGameScreen extends Screen {
     @Override
     public void onClose() {
         if (this.transition.isExiting()) return;
+        this.pauseMenuOpen = false;
+        this.isPaused = false;
         saveSessionRecordIfValid();
         AudioManager.fadeOutMusic(200L);
         this.transition.startExit(220L, () -> {
