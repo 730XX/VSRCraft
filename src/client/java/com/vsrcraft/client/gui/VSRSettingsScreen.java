@@ -52,6 +52,9 @@ public class VSRSettingsScreen extends Screen {
     private final List<Note> previewNotes7K = new ArrayList<>();
     private long previewLoopStart = 0L;
     private static final long LOOP_DURATION_MS = 2800L;
+    private boolean previewPaused = false;
+    private double frozenPreviewTimeMs = 1750.0;
+    private Button previewPauseButton;
 
     // Layout
     private int leftPanelX, leftPanelY, leftPanelW, leftPanelH;
@@ -61,6 +64,30 @@ public class VSRSettingsScreen extends Screen {
         super(Component.literal("Configuración de VSRCraft"));
         this.parentScreen = parentScreen;
         initPreviewNotes();
+    }
+
+    private void togglePreviewPause() {
+        if (!this.previewPaused) {
+            long now = System.currentTimeMillis();
+            this.frozenPreviewTimeMs = (now - this.previewLoopStart) % LOOP_DURATION_MS;
+            this.previewPaused = true;
+        } else {
+            this.previewLoopStart = System.currentTimeMillis() - Math.round(this.frozenPreviewTimeMs);
+            this.previewPaused = false;
+        }
+        updatePreviewPauseButtonText();
+    }
+
+    private void freezePreviewOnHoldNote() {
+        this.previewPaused = true;
+        this.frozenPreviewTimeMs = (this.editingKeyMode == 7) ? 1280.0 : 1950.0;
+        updatePreviewPauseButtonText();
+    }
+
+    private void updatePreviewPauseButtonText() {
+        if (this.previewPauseButton != null) {
+            this.previewPauseButton.setMessage(Component.literal(this.previewPaused ? "§a▶ Reanudar" : "§e⏸ Pausar"));
+        }
     }
 
     private void initPreviewNotes() {
@@ -125,6 +152,13 @@ public class VSRSettingsScreen extends Screen {
         .bounds(this.width - margin - 86, 4, 86, 20)
         .tooltip(Tooltip.create(Component.literal("Restablece todas las opciones a los valores por defecto")))
         .build());
+
+        // 2b. Botón [⏸ Pausar / ▶ Reanudar] en el header del Live Preview
+        this.previewPauseButton = Button.builder(
+                Component.literal(this.previewPaused ? "§a▶ Reanudar" : "§e⏸ Pausar"),
+                btn -> togglePreviewPause()
+        ).bounds(this.rightPanelX + this.rightPanelW - 72, this.rightPanelY + 2, 68, 16).build();
+        this.addRenderableWidget(this.previewPauseButton);
 
         // 3. Barra de Pestañas (Tabs) sobre la columna izquierda
         Tab[] tabs = Tab.values();
@@ -436,6 +470,8 @@ public class VSRSettingsScreen extends Screen {
             @Override
             protected void applyValue() {
                 settings.lnCutMs = Math.max(0, Math.min(60, (int) Math.round(this.value * 60.0)));
+                // Congelar el preview justo en la cola de la LN para comparar el corte en tiempo real
+                freezePreviewOnHoldNote();
             }
         });
     }
@@ -688,10 +724,16 @@ public class VSRSettingsScreen extends Screen {
             }
         }
 
-        // 3. Notas en bucle continuo a la velocidad y grosor configurados
-        long now = System.currentTimeMillis();
-        long loopElapsed = (now - this.previewLoopStart) % LOOP_DURATION_MS;
-        double currentPreviewTimeMs = loopElapsed;
+        // 3. Notas en bucle continuo (o congeladas si previewPaused)
+        double currentPreviewTimeMs;
+        if (this.previewPaused) {
+            currentPreviewTimeMs = this.frozenPreviewTimeMs;
+        } else {
+            long now = System.currentTimeMillis();
+            long loopElapsed = (now - this.previewLoopStart) % LOOP_DURATION_MS;
+            currentPreviewTimeMs = loopElapsed;
+            this.frozenPreviewTimeMs = loopElapsed;
+        }
 
         float scrollSpeed = VSRCraftSettings.get().scrollSpeed;
 
