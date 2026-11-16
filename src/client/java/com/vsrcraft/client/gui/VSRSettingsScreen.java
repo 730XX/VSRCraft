@@ -421,6 +421,23 @@ public class VSRSettingsScreen extends Screen {
                 }
         ).bounds(x, startY + (row++ * spacing), w, 20).build();
         this.addRenderableWidget(colorPresetBtn);
+
+        // Slider: Percy LN (Recorte visual de cola en ms)
+        this.addRenderableWidget(new AbstractSliderButton(
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal("Percy LN (Corte Visual): " + settings.lnCutMs + " ms"),
+                settings.lnCutMs / 150.0
+        ) {
+            @Override
+            protected void updateMessage() {
+                int ms = (int) Math.round(this.value * 150.0);
+                this.setMessage(Component.literal("Percy LN (Corte Visual): " + ms + " ms"));
+            }
+            @Override
+            protected void applyValue() {
+                settings.lnCutMs = Math.max(0, Math.min(150, (int) Math.round(this.value * 150.0)));
+            }
+        });
     }
 
     private void initKeybindsTabControls(int x, int startY, int w, int spacing, VSRCraftSettings settings) {
@@ -479,6 +496,7 @@ public class VSRSettingsScreen extends Screen {
         s.backgroundDim = 0.6f;
         s.noteShape = VSRCraftSettings.NoteShape.BARS;
         s.colorPreset = VSRCraftSettings.ColorPreset.CLASSIC;
+        s.lnCutMs = 0;
         s.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
         s.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
         VSRCraftSettings.save();
@@ -684,19 +702,29 @@ public class VSRSettingsScreen extends Screen {
             int noteWidth = laneW - 3;
             int noteColor = LaneTheme.getLaneColor(note.getLane(), keyCount);
 
-            // Cola de Hold
+            // Cola de Hold (Percy LN visual + punta redondeada)
             if (note.getType() == Note.Type.HOLD && note.getDurationMs() > 0) {
-                double timeUntilHead = note.getOffsetMs() - currentPreviewTimeMs;
-                double timeUntilTail = (note.getOffsetMs() + note.getDurationMs()) - currentPreviewTimeMs;
+                double headMs = note.getOffsetMs();
+                double visualEndMs = Math.max(headMs, (headMs + note.getDurationMs()) - VSRCraftSettings.get().lnCutMs);
+                double timeUntilHead = headMs - currentPreviewTimeMs;
+                double timeUntilTail = visualEndMs - currentPreviewTimeMs;
 
                 int headY = Math.round(hitCenterY - (float) (timeUntilHead * scrollSpeed));
                 int tailY = Math.round(hitCenterY - (float) (timeUntilTail * scrollSpeed));
 
                 if (headY >= trackAreaTop && tailY <= trackAreaBottom && headY > tailY) {
-                    int clampedTailY = Math.max(trackAreaTop, tailY);
-                    int clampedHeadY = Math.min(trackAreaBottom, headY);
                     int holdAlphaColor = (noteColor & 0x00FFFFFF) | 0x88000000;
-                    g.fill(noteX + 3, clampedTailY, noteX + noteWidth - 3, clampedHeadY, holdAlphaColor);
+                    NoteShapeRenderer.drawRoundedHoldBody(
+                            g,
+                            noteX + 3,
+                            noteX + noteWidth - 3,
+                            tailY,
+                            headY,
+                            trackAreaTop,
+                            trackAreaBottom,
+                            holdAlphaColor,
+                            false
+                    );
                 }
             }
 

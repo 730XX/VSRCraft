@@ -26,6 +26,7 @@ public class NoteRenderer {
         int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         int halfNote = noteHeight / 2;
         VSRCraftSettings.NoteShape shape = VSRCraftSettings.get().getNoteShape();
+        int lnCutMs = VSRCraftSettings.get().lnCutMs;
         int shapeRadius = Math.max(6, Math.min((laneWidth - 8) / 2, 18));
         // En Círculos/Flechas, los receptores descansan encima de hitLineY, así que el punto 0ms es su centro.
         int hitCenterY = (shape == VSRCraftSettings.NoteShape.BARS)
@@ -56,27 +57,29 @@ public class NoteRenderer {
             // Color de renderizado: si fue cortada o fallada, se oscurece a un gris tenue
             int noteColor = isDropped ? 0x66556677 : baseColor;
 
-            // 1. Renderizar cola / cuerpo de la nota HOLD
+            // 1. Renderizar cola / cuerpo de la nota HOLD (con Percy LN visual y punta redondeada)
             if (isHold) {
                 double headTimeMs = isHolding ? currentSongTimeMs : note.getOffsetMs();
+                double visualEndOffsetMs = Math.max(headTimeMs, endOffsetMs - lnCutMs);
                 double timeUntilHead = headTimeMs - currentSongTimeMs;
-                double timeUntilTail = endOffsetMs - currentSongTimeMs;
+                double timeUntilTail = visualEndOffsetMs - currentSongTimeMs;
 
                 int headY = Math.round(hitCenterY - (float) (timeUntilHead * scrollSpeed));
                 int tailY = Math.round(hitCenterY - (float) (timeUntilTail * scrollSpeed));
 
                 if (headY >= 0 && tailY <= screenHeight && headY > tailY) {
-                    int clampedTailY = Math.max(0, tailY);
-                    int clampedHeadY = Math.min(screenHeight, headY);
-
                     int holdAlphaColor = isDropped ? 0x33445566 : ((noteColor & 0x00FFFFFF) | 0x88000000);
-                    graphics.fill(noteX + 4, clampedTailY, noteX + noteWidth - 4, clampedHeadY, holdAlphaColor);
-
-                    // Borde lateral sutil de la cola si está activa
-                    if (isHolding) {
-                        graphics.fill(noteX + 3, clampedTailY, noteX + 4, clampedHeadY, 0xCCFFFFFF);
-                        graphics.fill(noteX + noteWidth - 4, clampedTailY, noteX + noteWidth - 3, clampedHeadY, 0xCCFFFFFF);
-                    }
+                    NoteShapeRenderer.drawRoundedHoldBody(
+                            graphics,
+                            noteX + 4,
+                            noteX + noteWidth - 4,
+                            tailY,
+                            headY,
+                            0,
+                            screenHeight,
+                            holdAlphaColor,
+                            isHolding
+                    );
                 }
             }
 

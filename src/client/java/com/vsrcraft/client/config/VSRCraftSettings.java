@@ -100,6 +100,7 @@ public class VSRCraftSettings {
     public float backgroundDim = 0.6f;     // Oscurecimiento de pantalla completa (0.0 = nada, 1.0 = negro total)
     public NoteShape noteShape = NoteShape.BARS;
     public ColorPreset colorPreset = ColorPreset.CLASSIC;
+    public int lnCutMs = 0;                // Percy LN: recorte visual de cola en ms (0 = normal)
 
     public NoteShape getNoteShape() {
         return noteShape != null ? noteShape : NoteShape.BARS;
@@ -191,6 +192,7 @@ public class VSRCraftSettings {
             if (instance.colorPreset == null) {
                 instance.colorPreset = ColorPreset.CLASSIC;
             }
+            instance.lnCutMs = Math.max(0, Math.min(150, instance.lnCutMs));
         }
     }
 

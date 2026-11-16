@@ -139,4 +139,53 @@ public final class NoteShapeRenderer {
             return ry <= stemBottom && Math.abs(rx) <= stemHalfW;
         }
     }
+
+    /**
+     * Dibuja el cuerpo de una nota Hold (LN) con la punta superior (tailY) redondeada en semicírculo.
+     */
+    public static void drawRoundedHoldBody(
+            GuiGraphics g,
+            int leftX,
+            int rightX,
+            int tailY,
+            int headY,
+            int minClipY,
+            int maxClipY,
+            int bodyColor,
+            boolean isHolding
+    ) {
+        int width = rightX - leftX;
+        if (width <= 2 || headY <= tailY) return;
+
+        int capRadius = Math.min(width / 2, headY - tailY);
+        int bodyTopY = tailY + capRadius;
+        double centerX = (leftX + rightX) / 2.0;
+
+        // 1. Semicírculo superior redondeado en tailY
+        if (capRadius > 1) {
+            double r2 = capRadius * (double) capRadius;
+            for (int dy = 0; dy < capRadius; dy++) {
+                int y = tailY + dy;
+                if (y < minClipY || y >= maxClipY) continue;
+                double distFromCenter = capRadius - dy;
+                double halfSpan = Math.sqrt(Math.max(0.0, r2 - distFromCenter * distFromCenter));
+                int rowLeft = Math.max(leftX, (int) Math.floor(centerX - halfSpan));
+                int rowRight = Math.min(rightX, (int) Math.ceil(centerX + halfSpan));
+                if (rowRight > rowLeft) {
+                    g.fill(rowLeft, y, rowRight, y + 1, bodyColor);
+                }
+            }
+        }
+
+        // 2. Cuerpo recto desde bodyTopY hasta headY
+        int clampedTop = Math.max(minClipY, bodyTopY);
+        int clampedBottom = Math.min(maxClipY, headY);
+        if (clampedBottom > clampedTop) {
+            g.fill(leftX, clampedTop, rightX, clampedBottom, bodyColor);
+            if (isHolding) {
+                g.fill(leftX - 1, clampedTop, leftX, clampedBottom, 0xCCFFFFFF);
+                g.fill(rightX, clampedTop, rightX + 1, clampedBottom, 0xCCFFFFFF);
+            }
+        }
+    }
 }
