@@ -14,9 +14,15 @@ public class NoteRenderer {
     }
 
     public static void renderNotes(GuiGraphics graphics, List<Note> notes, double currentSongTimeMs, int boardStartX, int hitLineY, int screenHeight, int laneCount) {
+        renderNotes(graphics, notes, currentSongTimeMs, boardStartX, hitLineY, screenHeight, laneCount, 1.0f);
+    }
+
+    public static void renderNotes(GuiGraphics graphics, List<Note> notes, double currentSongTimeMs, int boardStartX, int hitLineY, int screenHeight, int laneCount, float playbackRate) {
         int hitCenterY = hitLineY + 2; // Centro de la línea de impacto (grosor 4px)
         int noteHeight = RhythmConfig.getNoteHeight();
-        float scrollSpeed = RhythmConfig.getScrollSpeed();
+        // Dividimos por playbackRate para mantener constante la velocidad visual de caída (px/seg real)
+        // y que al subir el rate solo aumente la densidad entre notas.
+        float scrollSpeed = RhythmConfig.getScrollSpeed() / Math.max(0.5f, playbackRate);
         int laneWidth = RhythmConfig.getLaneWidth(laneCount);
         int halfNote = noteHeight / 2;
 

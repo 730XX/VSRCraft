@@ -77,6 +77,7 @@ public class AudioManager {
     private static boolean musicPaused = false;
     private static boolean musicFinished = false;
     private static float musicPlaybackRate = 1.0f;
+    private static float loadedPlaybackRate = 1.0f;
 
     // Estado para el Preview de audio en el Selector de Canciones (Fade-In suave al abrir, rápido al cambiar)
     private static final long PREVIEW_INITIAL_DELAY_MS = 200L;
@@ -119,24 +120,31 @@ public class AudioManager {
     }
 
     public static synchronized void preloadMusicFromResource(String resourcePath) {
+        preloadMusicFromResource(resourcePath, 1.0f);
+    }
+
+    public static synchronized void preloadMusicFromResource(String resourcePath, float playbackRate) {
         if (resourcePath == null || resourcePath.isEmpty()) {
             resourcePath = "/assets/vsrcraft/sounds/music/whatsup.ogg";
         }
 
+        float clampedRate = Math.max(0.5f, Math.min(2.0f, playbackRate));
         Minecraft client = Minecraft.getInstance();
         if (client != null && client.getMusicManager() != null) {
             client.getMusicManager().stopPlaying();
         }
 
-        // Si este mismo archivo ya fue decodificado (ej. por el preview del selector) o se está decodificando,
-        // reutilizamos el buffer de OpenAL sin volver a decodificar todo el MP3/OGG desde cero.
-        if (Objects.equals(currentAudioPath, resourcePath) && (musicReady || preloadFuture != null)) {
+        // Reutilizamos el buffer de OpenAL solo si coinciden tanto el archivo como el rate cargado.
+        if (Objects.equals(currentAudioPath, resourcePath)
+                && Math.abs(loadedPlaybackRate - clampedRate) < 0.001f
+                && (musicReady || preloadFuture != null)) {
             if (musicSourceId != 0) {
                 AL10.alSourceStop(musicSourceId);
                 AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_FALSE);
                 AL10.alSourceRewind(musicSourceId);
                 AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, 0.0f);
             }
+            musicPlaybackRate = clampedRate;
             musicPlaying = false;
             musicPaused = false;
             musicFinished = false;
@@ -151,8 +159,11 @@ public class AudioManager {
 
         stopMusic();
         currentAudioPath = resourcePath;
+        musicPlaybackRate = clampedRate;
+        loadedPlaybackRate = clampedRate;
         final String pathToLoad = resourcePath;
-        preloadFuture = CompletableFuture.supplyAsync(() -> decodeAudioResource(pathToLoad));
+        final float rateToLoad = clampedRate;
+        preloadFuture = CompletableFuture.supplyAsync(() -> decodeAudioResource(pathToLoad, rateToLoad));
     }
 
     /**
@@ -259,7 +270,7 @@ public class AudioManager {
                 updateMusicVolume();
 
                 musicSampleRate = decoded.sampleRate;
-                musicDurationMs = (decoded.totalSamples * 1000L) / Math.max(1, decoded.sampleRate);
+                musicDurationMs = Math.round(((decoded.totalSamples * 1000.0) / Math.max(1, decoded.sampleRate)) * loadedPlaybackRate);
                 musicReady = true;
                 return true;
             } finally {
@@ -287,9 +298,6 @@ public class AudioManager {
 
     public static synchronized void setMusicPlaybackRate(float rate) {
         musicPlaybackRate = Math.max(0.5f, Math.min(2.0f, rate));
-        if (musicSourceId != 0 && !previewMode) {
-            AL10.alSourcef(musicSourceId, AL10.AL_PITCH, musicPlaybackRate);
-        }
     }
 
     public static synchronized float getMusicPlaybackRate() {
@@ -303,7 +311,7 @@ public class AudioManager {
         pendingPreview = false;
         fadeOutActive = false;
         updateMusicVolume();
-        AL10.alSourcef(musicSourceId, AL10.AL_PITCH, musicPlaybackRate);
+        AL10.alSourcef(musicSourceId, AL10.AL_PITCH, 1.0f);
         AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_FALSE);
         AL10.alSourceRewind(musicSourceId);
         AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, 0.0f);
@@ -369,7 +377,7 @@ public class AudioManager {
 
         if (state == AL10.AL_PLAYING) {
             int sampleOffset = AL10.alGetSourcei(musicSourceId, AL11.AL_SAMPLE_OFFSET);
-            double hardwareMs = (sampleOffset * 1000.0) / musicSampleRate;
+            double hardwareMs = ((sampleOffset * 1000.0) / musicSampleRate) * musicPlaybackRate;
 
             if (sampleOffset != lastSampleOffset) {
                 lastSampleOffset = sampleOffset;
@@ -490,6 +498,22 @@ public class AudioManager {
      * Decodifica automáticamente archivos .ogg, .mp3 o .wav en PCM de 16 bits para OpenAL.
      * Incluye fallback automático por si un mapa de osu! tiene la extensión cambiada (ej. MP3 nombrado como .ogg).
      */
+    private static DecodedAudio decodeAudioResource(String resourcePath, float playbackRate) {
+        DecodedAudio decoded = decodeAudioResource(resourcePath);
+        if (decoded == null || Math.abs(playbackRate - 1.0f) < 0.001f) {
+            return decoded;
+        }
+        AudioTimeStretcher.StretchResult stretched = AudioTimeStretcher.stretch(
+                decoded.pcm, decoded.channels, decoded.sampleRate, playbackRate);
+        if (stretched == null) {
+            return decoded;
+        }
+        int outChannels = Math.min(2, decoded.channels);
+        int sampleRate = decoded.sampleRate;
+        decoded.freePcm();
+        return new DecodedAudio(stretched.pcm(), outChannels, sampleRate, stretched.totalSamples(), false);
+    }
+
     private static DecodedAudio decodeAudioResource(String resourcePath) {
         try (InputStream stream = openAudioStream(resourcePath)) {
             if (stream == null) {

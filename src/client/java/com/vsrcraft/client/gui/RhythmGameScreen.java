@@ -168,8 +168,7 @@ public class RhythmGameScreen extends Screen {
         this.recordedEvents.clear();
         Arrays.fill(this.lanePressed, false);
         this.engine.start(0);
-        AudioManager.setMusicPlaybackRate(this.playbackRate);
-        AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
+        AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath(), this.playbackRate);
     }
 
     private void restartSession() {
@@ -252,7 +251,7 @@ public class RhythmGameScreen extends Screen {
         LaneRenderer.renderLanes(guiGraphics, this.font, boardStartX, boardWidth, hitLineY, this.height, keyCount, lanePressed);
 
         // 2. Render de notas cayendo (aplica velocidad, grosor y hit position configurados)
-        NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount);
+        NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount, this.playbackRate);
 
         // 2b. Efectos de golpe "Voxel Sparks" (chispas cúbicas debajo de la línea de impacto)
         if (!isPaused && !engine.isFailed()) {
