@@ -25,6 +25,7 @@ public class ReplayData {
     public String playerName = "";
     public String osuBeatmapMd5 = "";
     public int mods = 0;
+    public float playbackRate = 1.0f;
     public int score = 0;
     public float accuracy = 0.0f;
     public int maxCombo = 0;
@@ -53,5 +54,14 @@ public class ReplayData {
         if ((mods & (1 << 6)) != 0) return "DT";
         if ((mods & (1 << 8)) != 0) return "HT";
         return "";
+    }
+
+    public float getPlaybackRate() {
+        if (playbackRate > 0.0f && Math.abs(playbackRate - 1.0f) > 0.001f) {
+            return playbackRate;
+        }
+        if ((mods & ((1 << 6) | (1 << 9))) != 0) return 1.5f;
+        if ((mods & (1 << 8)) != 0) return 0.75f;
+        return 1.0f;
     }
 }

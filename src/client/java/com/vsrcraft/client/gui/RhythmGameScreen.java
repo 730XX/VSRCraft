@@ -56,6 +56,7 @@ public class RhythmGameScreen extends Screen {
 
     // Grabación y Reproducción de Replays
     private final ReplayData activeReplay;
+    private final float playbackRate;
     private int replayCursor = 0;
     private final List<ReplayData.ReplayEvent> recordedEvents = new ArrayList<>();
 
@@ -64,14 +65,22 @@ public class RhythmGameScreen extends Screen {
     private Button exitButton;
 
     public RhythmGameScreen() {
-        this(getDefaultBeatmap(), null);
+        this(getDefaultBeatmap(), null, 1.0f);
     }
 
     public RhythmGameScreen(Beatmap beatmap) {
-        this(beatmap, null);
+        this(beatmap, null, 1.0f);
+    }
+
+    public RhythmGameScreen(Beatmap beatmap, float playbackRate) {
+        this(beatmap, null, playbackRate);
     }
 
     public RhythmGameScreen(Beatmap beatmap, ReplayData replayData) {
+        this(beatmap, replayData, replayData != null ? replayData.getPlaybackRate() : 1.0f);
+    }
+
+    public RhythmGameScreen(Beatmap beatmap, ReplayData replayData, float playbackRate) {
         super(Component.literal("VSRCraft - " + beatmap.getTitle()));
         this.keyCount = beatmap.getKeyCount();
         this.laneKeys = KeybindConfig.getKeysForMode(keyCount);
@@ -80,6 +89,7 @@ public class RhythmGameScreen extends Screen {
         this.keyOverlay = new KeyOverlayRenderer(keyCount);
         this.leadInMs = Math.max(MIN_LEAD_IN_MS, beatmap.getAudioLeadInMs());
         this.activeReplay = replayData;
+        this.playbackRate = Math.max(0.5f, Math.min(2.0f, playbackRate));
     }
 
     private boolean isReplayMode() {
@@ -158,6 +168,7 @@ public class RhythmGameScreen extends Screen {
         this.recordedEvents.clear();
         Arrays.fill(this.lanePressed, false);
         this.engine.start(0);
+        AudioManager.setMusicPlaybackRate(this.playbackRate);
         AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
     }
 
@@ -184,7 +195,7 @@ public class RhythmGameScreen extends Screen {
         if (musicStarted) return true;
         if (startNanoTime < 0) return false;
         long now = isPaused ? pausedNanoTime : System.nanoTime();
-        double elapsedMs = (now - startNanoTime) / 1_000_000.0;
+        double elapsedMs = ((now - startNanoTime) / 1_000_000.0) * this.playbackRate;
         return (elapsedMs - leadInMs) >= 0.0 && AudioManager.ensureMusicReady();
     }
 
@@ -192,7 +203,7 @@ public class RhythmGameScreen extends Screen {
         if (!musicStarted) {
             if (startNanoTime < 0) return -leadInMs + VSRCraftSettings.get().globalAudioOffsetMs;
             long now = isPaused ? pausedNanoTime : System.nanoTime();
-            double elapsedMs = (now - startNanoTime) / 1_000_000.0;
+            double elapsedMs = ((now - startNanoTime) / 1_000_000.0) * this.playbackRate;
             double leadInCurrent = elapsedMs - leadInMs;
             if (leadInCurrent >= 0.0 && !AudioManager.ensureMusicReady()) {
                 return -1.0 + VSRCraftSettings.get().globalAudioOffsetMs;
@@ -277,9 +288,13 @@ public class RhythmGameScreen extends Screen {
                 replayLabel += " §f// " + this.activeReplay.playerName;
             }
             if (this.activeReplay.hasSpeedMod()) {
-                replayLabel += " §c[" + this.activeReplay.getSpeedModLabel() + " @ 1.0x]";
+                replayLabel += String.format(" §b[%s %.2fx]", this.activeReplay.getSpeedModLabel(), this.playbackRate);
+            } else if (Math.abs(this.playbackRate - 1.0f) > 0.001f) {
+                replayLabel += String.format(" §b[%.2fx]", this.playbackRate);
             }
             guiGraphics.drawCenteredString(this.font, replayLabel, this.width / 2, 10, 0xFFFFD54F);
+        } else if (Math.abs(this.playbackRate - 1.0f) > 0.001f) {
+            guiGraphics.drawCenteredString(this.font, String.format("§b§lRATE: %.2fx", this.playbackRate), this.width / 2, 10, 0xFF55E5FF);
         }
 
         // Mensaje de ayuda abajo a la izquierda
@@ -318,6 +333,9 @@ public class RhythmGameScreen extends Screen {
                             tracker.getRank(),
                             this.recordedEvents
                     );
+            if (!isReplayMode()) {
+                sessionReplay.playbackRate = this.playbackRate;
+            }
 
             if (isNewRecord) {
                 ReplayRepository.saveBestReplay(sessionReplay);

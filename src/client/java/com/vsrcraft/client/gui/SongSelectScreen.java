@@ -62,6 +62,7 @@ public class SongSelectScreen extends Screen {
     private static String rememberedBeatmapId = null;
     private static String rememberedSearchQuery = "";
     private static double rememberedScrollOffset = -1.0;
+    private static float rememberedPlaybackRate = 1.0f;
 
     private String expandedSetId = null;
     private Beatmap selectedBeatmap = null;
@@ -359,7 +360,8 @@ public class SongSelectScreen extends Screen {
         this.transitioningToSubScreen = true;
         AudioManager.fadeOutMusic(220L);
         final Beatmap targetMap = this.selectedBeatmap;
-        this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap)));
+        final float targetRate = rememberedPlaybackRate;
+        this.transition.startExit(240L, () -> this.minecraft.setScreen(new RhythmGameScreen(targetMap, targetRate)));
     }
 
     private String statusMessage = "";
@@ -490,8 +492,8 @@ public class SongSelectScreen extends Screen {
         g.fill(0, this.height - 18, this.width, this.height, 0xCC0D111A);
         g.fill(0, this.height - 18, this.width, this.height - 17, 0x44FFFFFF);
         String footer = String.format(Locale.ROOT,
-                "Clic: Desplegar/Elegir  |  ENTER / Doble Clic: Jugar  |  Scroll: %.2fx (F3/F4)  |  Offset: %+dms",
-                VSRCraftSettings.get().scrollSpeed, VSRCraftSettings.get().globalAudioOffsetMs);
+                "Clic: Desplegar/Elegir  |  ENTER / Doble Clic: Jugar  |  Scroll: %.2fx (F3/F4)  |  Rate: %.2fx (F5/F6)  |  Offset: %+dms",
+                VSRCraftSettings.get().scrollSpeed, rememberedPlaybackRate, VSRCraftSettings.get().globalAudioOffsetMs);
         g.drawCenteredString(this.font, footer, this.width / 2, this.height - 13, 0xFF99AABB);
 
         // 6. Widgets
@@ -859,6 +861,14 @@ public class SongSelectScreen extends Screen {
             if (key == GLFW.GLFW_KEY_F4) {
                 VSRCraftSettings.get().scrollSpeed = Math.min(1.5f, VSRCraftSettings.get().scrollSpeed + 0.05f);
                 VSRCraftSettings.save();
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_F5) {
+                rememberedPlaybackRate = Math.max(0.50f, Math.round((rememberedPlaybackRate - 0.05f) * 20.0f) / 20.0f);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_F6) {
+                rememberedPlaybackRate = Math.min(2.00f, Math.round((rememberedPlaybackRate + 0.05f) * 20.0f) / 20.0f);
                 return true;
             }
         }

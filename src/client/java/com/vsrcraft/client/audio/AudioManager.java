@@ -76,6 +76,7 @@ public class AudioManager {
     private static boolean musicPlaying = false;
     private static boolean musicPaused = false;
     private static boolean musicFinished = false;
+    private static float musicPlaybackRate = 1.0f;
 
     // Estado para el Preview de audio en el Selector de Canciones (Fade-In suave al abrir, rápido al cambiar)
     private static final long PREVIEW_INITIAL_DELAY_MS = 200L;
@@ -208,6 +209,7 @@ public class AudioManager {
             previewFadeStartNano = System.nanoTime();
 
             AL10.alSourcef(musicSourceId, AL10.AL_GAIN, 0.0f);
+            AL10.alSourcef(musicSourceId, AL10.AL_PITCH, 1.0f);
             AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_TRUE);
             AL10.alSourceRewind(musicSourceId);
 
@@ -283,6 +285,17 @@ public class AudioManager {
         startPreloadedMusic();
     }
 
+    public static synchronized void setMusicPlaybackRate(float rate) {
+        musicPlaybackRate = Math.max(0.5f, Math.min(2.0f, rate));
+        if (musicSourceId != 0 && !previewMode) {
+            AL10.alSourcef(musicSourceId, AL10.AL_PITCH, musicPlaybackRate);
+        }
+    }
+
+    public static synchronized float getMusicPlaybackRate() {
+        return musicPlaybackRate;
+    }
+
     public static synchronized void startPreloadedMusic() {
         if (!ensureMusicReady() || musicSourceId == 0) return;
 
@@ -290,6 +303,7 @@ public class AudioManager {
         pendingPreview = false;
         fadeOutActive = false;
         updateMusicVolume();
+        AL10.alSourcef(musicSourceId, AL10.AL_PITCH, musicPlaybackRate);
         AL10.alSourcei(musicSourceId, AL10.AL_LOOPING, AL10.AL_FALSE);
         AL10.alSourceRewind(musicSourceId);
         AL10.alSourcef(musicSourceId, AL11.AL_SEC_OFFSET, 0.0f);
@@ -363,10 +377,10 @@ public class AudioManager {
                 lastHardwareUpdateNano = nowNano;
             }
 
-            double elapsedSinceUpdateMs = (nowNano - lastHardwareUpdateNano) / 1_000_000.0;
-            double interpolatedMs = lastHardwareTimeMs + Math.min(25.0, Math.max(0.0, elapsedSinceUpdateMs));
+            double elapsedSinceUpdateMs = ((nowNano - lastHardwareUpdateNano) / 1_000_000.0) * musicPlaybackRate;
+            double interpolatedMs = lastHardwareTimeMs + Math.min(25.0 * musicPlaybackRate, Math.max(0.0, elapsedSinceUpdateMs));
 
-            if (interpolatedMs < lastReturnedTimeMs && (lastReturnedTimeMs - hardwareMs) < 25.0) {
+            if (interpolatedMs < lastReturnedTimeMs && (lastReturnedTimeMs - hardwareMs) < 25.0 * musicPlaybackRate) {
                 interpolatedMs = lastReturnedTimeMs;
             }
 
@@ -378,7 +392,7 @@ public class AudioManager {
                 musicFinishedNano = nowNano;
                 lastReturnedTimeMs = Math.max(lastReturnedTimeMs, musicDurationMs);
             }
-            double extraMs = (nowNano - musicFinishedNano) / 1_000_000.0;
+            double extraMs = ((nowNano - musicFinishedNano) / 1_000_000.0) * musicPlaybackRate;
             return lastReturnedTimeMs + extraMs;
         }
 
