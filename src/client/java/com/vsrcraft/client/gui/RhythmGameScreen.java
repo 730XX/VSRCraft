@@ -11,6 +11,7 @@ import com.vsrcraft.client.domain.ScoreTracker;
 import com.vsrcraft.client.engine.RhythmEngine;
 import com.vsrcraft.client.gui.renderer.HitEffectRenderer;
 import com.vsrcraft.client.gui.renderer.JudgementHudRenderer;
+import com.vsrcraft.client.gui.renderer.KeyOverlayRenderer;
 import com.vsrcraft.client.gui.renderer.LaneRenderer;
 import com.vsrcraft.client.gui.renderer.NoteRenderer;
 import net.minecraft.client.gui.GuiGraphics;
@@ -47,6 +48,7 @@ public class RhythmGameScreen extends Screen {
     private boolean transitioningToResults = false;
     private final ScreenTransition transition = new ScreenTransition(280L);
     private final HitEffectRenderer hitEffects = new HitEffectRenderer();
+    private final KeyOverlayRenderer keyOverlay;
 
     // Botones interactivos en pantalla de fallo
     private Button retryButton;
@@ -62,6 +64,7 @@ public class RhythmGameScreen extends Screen {
         this.laneKeys = KeybindConfig.getKeysForMode(keyCount);
         this.lanePressed = new boolean[keyCount];
         this.engine = new RhythmEngine(beatmap);
+        this.keyOverlay = new KeyOverlayRenderer(keyCount);
         this.leadInMs = Math.max(MIN_LEAD_IN_MS, beatmap.getAudioLeadInMs());
     }
 
@@ -92,10 +95,10 @@ public class RhythmGameScreen extends Screen {
             }
         }
 
-        // Botón de la tuerquita (⚙) abajo a la derecha
-        int gearButtonSize = 32;
+        // Botón de la tuerquita (⚙) arriba a la derecha
+        int gearButtonSize = 26;
         int gearX = this.width - gearButtonSize - 12;
-        int gearY = this.height - gearButtonSize - 12;
+        int gearY = 10;
 
         Button settingsButton = Button.builder(
                 Component.literal("⚙"),
@@ -132,6 +135,7 @@ public class RhythmGameScreen extends Screen {
         this.clearTriggered = false;
         this.transitioningToResults = false;
         this.hitEffects.clear();
+        this.keyOverlay.reset();
         this.engine.start(0);
         AudioManager.preloadMusicFromResource(this.engine.getBeatmap().getAudioResourcePath());
     }
@@ -233,6 +237,9 @@ public class RhythmGameScreen extends Screen {
 
         // 4. Render de la Barra de Vida Lateral (HP Bar)
         renderHpBar(guiGraphics, boardStartX + boardWidth + 8, hitLineY);
+
+        // 4b. Visualizador de teclas y KPS (Key Overlay / JKPS) abajo a la derecha
+        this.keyOverlay.render(guiGraphics, this.font, this.laneKeys, this.lanePressed, this.width, this.height);
 
         // Metadata de la canción y estado arriba a la izquierda
         String status = currentSongTimeLong < 0
@@ -392,6 +399,7 @@ public class RhythmGameScreen extends Screen {
                     return true;
                 }
                 lanePressed[lane] = true;
+                this.keyOverlay.onLanePressed(lane);
                 Judgement judgement = engine.onLanePressed(lane, currentSongTime);
                 if (judgement != null && judgement != Judgement.MISS) {
                     AudioManager.playHitSound();
