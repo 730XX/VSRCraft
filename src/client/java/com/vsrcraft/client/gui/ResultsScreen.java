@@ -153,8 +153,8 @@ public class ResultsScreen extends Screen {
         g.drawCenteredString(this.font, "§7RANGO FINAL", centerX, y + 10, 0xFF8899AA);
 
         // Letra de rango gigante escalada con pop sutil
-        float scale = 4.0f * (0.85f + 0.15f * progress);
-        int rankCenterY = y + 42;
+        float scale = 8.0f * (0.85f + 0.15f * progress);
+        int rankCenterY = y + 82;
         g.pose().pushMatrix();
         g.pose().translate(centerX, rankCenterY);
         g.pose().scale(scale, scale);
@@ -170,7 +170,7 @@ public class ResultsScreen extends Screen {
         int gap = 6;
 
         int animatedScore = Math.round(this.score * progress);
-        drawMetricRow(g, cardX, cursorY, cardW, cardH, "SCORE TOTAL", String.format(Locale.ROOT, "%07d", animatedScore), 0xFFFFFFFF);
+        drawMetricRow(g, cardX, cursorY, cardW, cardH, "SCORE TOTAL", String.format(Locale.ROOT, "%,d", animatedScore), 0xFFFFFFFF);
         cursorY += cardH + gap;
 
         drawMetricRow(g, cardX, cursorY, cardW, cardH, "PRECISIÓN (ACC)", String.format(Locale.ROOT, "%.2f%%", this.accuracy), 0xFF00E5FF);
@@ -183,7 +183,7 @@ public class ResultsScreen extends Screen {
         g.fill(x, y, x + w, y + h, 0xD8111722);
         drawBorder(g, x, y, w, h, 0xFF26334D);
 
-        g.drawString(this.font, "§7DESGLOSE DE JUICIOS", x + 12, y + 10, 0xFF8899AA, false);
+        g.drawString(this.font, "§7RESUMEN DE HITS:", x + 12, y + 10, 0xFF8899AA, false);
         g.fill(x + 12, y + 22, x + w - 12, y + 23, 0x33FFFFFF);
 
         Judgement[] order = {

@@ -439,7 +439,7 @@ public class SongSelectScreen extends Screen {
                 int rankW = this.font.width(rankLabel);
                 g.drawString(this.font, rankLabel, innerX + maxTextW - 8 - rankW, yCursor + 5, rankColor, true);
 
-                String scoreLine = String.format(Locale.ROOT, "Score: %07d", record.bestScore);
+                String scoreLine = String.format(Locale.ROOT, "Score: %,d", record.bestScore);
                 g.drawString(this.font, scoreLine, innerX + 6, yCursor + 17, 0xFFFFFFFF, false);
 
                 if (recordBoxH >= 42) {

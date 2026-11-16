@@ -338,7 +338,7 @@ public class RhythmGameScreen extends Screen {
         g.drawCenteredString(this.font, "§7Te has quedado sin vida (HP 0%)", centerX, centerY - 16, 0xFFAAAAAA);
 
         ScoreTracker tracker = engine.getScoreTracker();
-        String statsLine = String.format(Locale.ROOT, "Score: %07d   |   Acc: %.2f%%   |   Max Combo: %dx",
+        String statsLine = String.format(Locale.ROOT, "Score: %,d   |   Acc: %.2f%%   |   Max Combo: %dx",
                 tracker.getScore(), tracker.getAccuracy(), tracker.getMaxCombo());
         g.drawCenteredString(this.font, statsLine, centerX, centerY + 6, 0xFFE0E0E0);
     }
