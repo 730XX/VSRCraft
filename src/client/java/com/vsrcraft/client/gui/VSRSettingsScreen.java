@@ -422,20 +422,20 @@ public class VSRSettingsScreen extends Screen {
         ).bounds(x, startY + (row++ * spacing), w, 20).build();
         this.addRenderableWidget(colorPresetBtn);
 
-        // Slider: Percy LN (Recorte visual de cola en ms)
+        // Slider: Percy LN (Recorte visual de cola en ms, máx 60ms)
         this.addRenderableWidget(new AbstractSliderButton(
                 x, startY + (row++ * spacing), w, 20,
                 Component.literal("Percy LN (Corte Visual): " + settings.lnCutMs + " ms"),
-                settings.lnCutMs / 150.0
+                Math.min(1.0, settings.lnCutMs / 60.0)
         ) {
             @Override
             protected void updateMessage() {
-                int ms = (int) Math.round(this.value * 150.0);
+                int ms = (int) Math.round(this.value * 60.0);
                 this.setMessage(Component.literal("Percy LN (Corte Visual): " + ms + " ms"));
             }
             @Override
             protected void applyValue() {
-                settings.lnCutMs = Math.max(0, Math.min(150, (int) Math.round(this.value * 150.0)));
+                settings.lnCutMs = Math.max(0, Math.min(60, (int) Math.round(this.value * 60.0)));
             }
         });
     }
@@ -702,15 +702,35 @@ public class VSRSettingsScreen extends Screen {
             int noteWidth = laneW - 3;
             int noteColor = LaneTheme.getLaneColor(note.getLane(), keyCount);
 
-            // Cola de Hold (Percy LN visual + punta redondeada)
+            // Cola de Hold (Percy LN visual + punta redondeada + guía comparativa de corte)
             if (note.getType() == Note.Type.HOLD && note.getDurationMs() > 0) {
                 double headMs = note.getOffsetMs();
-                double visualEndMs = Math.max(headMs, (headMs + note.getDurationMs()) - VSRCraftSettings.get().lnCutMs);
+                double fullEndMs = headMs + note.getDurationMs();
+                int lnCut = VSRCraftSettings.get().lnCutMs;
+                double visualEndMs = Math.max(headMs, fullEndMs - lnCut);
                 double timeUntilHead = headMs - currentPreviewTimeMs;
                 double timeUntilTail = visualEndMs - currentPreviewTimeMs;
+                double timeUntilFullTail = fullEndMs - currentPreviewTimeMs;
 
                 int headY = Math.round(hitCenterY - (float) (timeUntilHead * scrollSpeed));
                 int tailY = Math.round(hitCenterY - (float) (timeUntilTail * scrollSpeed));
+                int fullTailY = Math.round(hitCenterY - (float) (timeUntilFullTail * scrollSpeed));
+
+                // Guía fantasma del tamaño original recortado por Percy LN
+                if (lnCut > 0 && headY >= trackAreaTop && fullTailY <= trackAreaBottom && tailY > fullTailY) {
+                    int ghostLeft = noteX + 3;
+                    int ghostRight = noteX + noteWidth - 3;
+                    int ghostTop = Math.max(trackAreaTop, fullTailY);
+                    int ghostBottom = Math.min(trackAreaBottom, tailY);
+                    if (ghostBottom > ghostTop) {
+                        g.fill(ghostLeft, ghostTop, ghostRight, ghostBottom, 0x2EFF4466);
+                        g.fill(ghostLeft, ghostTop, ghostLeft + 1, ghostBottom, 0x99FF5577);
+                        g.fill(ghostRight - 1, ghostTop, ghostRight, ghostBottom, 0x99FF5577);
+                        if (fullTailY >= trackAreaTop && fullTailY < trackAreaBottom) {
+                            g.fill(ghostLeft, fullTailY, ghostRight, fullTailY + 1, 0xCCFF6688);
+                        }
+                    }
+                }
 
                 if (headY >= trackAreaTop && tailY <= trackAreaBottom && headY > tailY) {
                     int holdAlphaColor = (noteColor & 0x00FFFFFF) | 0x88000000;

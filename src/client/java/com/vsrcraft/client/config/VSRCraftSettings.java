@@ -192,7 +192,7 @@ public class VSRCraftSettings {
             if (instance.colorPreset == null) {
                 instance.colorPreset = ColorPreset.CLASSIC;
             }
-            instance.lnCutMs = Math.max(0, Math.min(150, instance.lnCutMs));
+            instance.lnCutMs = Math.max(0, Math.min(60, instance.lnCutMs));
         }
     }
 

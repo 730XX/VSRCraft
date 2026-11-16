@@ -540,10 +540,7 @@ public class RhythmGameScreen extends Screen {
                     AudioManager.playHitSound();
                 }
             } else {
-                Judgement releaseJudgement = this.engine.onLaneReleased(ev.lane, ev.timeMs);
-                if (releaseJudgement != null && releaseJudgement != Judgement.MISS) {
-                    AudioManager.playHitSound();
-                }
+                this.engine.onLaneReleased(ev.lane, ev.timeMs);
             }
         }
     }
@@ -661,10 +658,7 @@ public class RhythmGameScreen extends Screen {
             if (event.key() == laneKeys[lane]) {
                 lanePressed[lane] = false;
                 this.recordedEvents.add(new ReplayData.ReplayEvent(currentSongTime, lane, false));
-                Judgement releaseJudgement = engine.onLaneReleased(lane, currentSongTime);
-                if (releaseJudgement != null && releaseJudgement != Judgement.MISS) {
-                    AudioManager.playHitSound();
-                }
+                engine.onLaneReleased(lane, currentSongTime);
                 return true;
             }
         }
