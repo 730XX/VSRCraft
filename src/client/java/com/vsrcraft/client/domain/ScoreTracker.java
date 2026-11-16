@@ -1,10 +1,15 @@
 package com.vsrcraft.client.domain;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class ScoreTracker {
     public static final int MAX_SCORE = 1_000_000;
+
+    public record HitSample(long songTimeMs, long errorMs, Judgement judgement) {}
 
     private double rawScore = 0.0;
     private int score = 0;
@@ -12,6 +17,7 @@ public class ScoreTracker {
     private int maxCombo = 0;
     private int totalJudgementUnits = 1;
     private final Map<Judgement, Integer> judgementCounts = new EnumMap<>(Judgement.class);
+    private final List<HitSample> hitSamples = new ArrayList<>();
 
     public ScoreTracker() {
         reset(1);
@@ -33,6 +39,13 @@ public class ScoreTracker {
         }
     }
 
+    public void registerJudgement(Judgement judgement, long songTimeMs, long errorMs, boolean recordTimingSample) {
+        registerJudgement(judgement);
+        if (recordTimingSample && judgement != Judgement.MISS) {
+            hitSamples.add(new HitSample(songTimeMs, errorMs, judgement));
+        }
+    }
+
     public void reset() {
         reset(this.totalJudgementUnits);
     }
@@ -43,6 +56,7 @@ public class ScoreTracker {
         score = 0;
         combo = 0;
         maxCombo = 0;
+        hitSamples.clear();
         for (Judgement j : Judgement.values()) {
             judgementCounts.put(j, 0);
         }
@@ -84,4 +98,47 @@ public class ScoreTracker {
     public int getCombo() { return combo; }
     public int getMaxCombo() { return maxCombo; }
     public Map<Judgement, Integer> getJudgementCounts() { return judgementCounts; }
+    public List<HitSample> getHitSamples() { return hitSamples; }
+
+    public String getFormattedMaPfRatio() {
+        int ma = judgementCounts.getOrDefault(Judgement.MARVELOUS, 0);
+        int pf = judgementCounts.getOrDefault(Judgement.PERFECT, 0);
+        if (pf == 0) {
+            return ma > 0 ? "∞ : 1" : "0.0 : 1";
+        }
+        return String.format(Locale.ROOT, "%.2f : 1", (double) ma / pf);
+    }
+
+    public double getMeanErrorMs() {
+        if (hitSamples.isEmpty()) return 0.0;
+        double sum = 0.0;
+        for (HitSample s : hitSamples) {
+            sum += s.errorMs();
+        }
+        return sum / hitSamples.size();
+    }
+
+    public double getUnstableRate() {
+        if (hitSamples.size() < 2) return 0.0;
+        double mean = getMeanErrorMs();
+        double sqSum = 0.0;
+        for (HitSample s : hitSamples) {
+            double d = s.errorMs() - mean;
+            sqSum += d * d;
+        }
+        double stdev = Math.sqrt(sqSum / hitSamples.size());
+        return stdev * 10.0;
+    }
+
+    public static ScoreTracker fromCounts(int score, int maxCombo, int marvelous, int perfect, int great, int bad, int miss) {
+        ScoreTracker t = new ScoreTracker();
+        t.score = score;
+        t.maxCombo = maxCombo;
+        t.judgementCounts.put(Judgement.MARVELOUS, Math.max(0, marvelous));
+        t.judgementCounts.put(Judgement.PERFECT, Math.max(0, perfect));
+        t.judgementCounts.put(Judgement.GREAT, Math.max(0, great));
+        t.judgementCounts.put(Judgement.BAD, Math.max(0, bad));
+        t.judgementCounts.put(Judgement.MISS, Math.max(0, miss));
+        return t;
+    }
 }

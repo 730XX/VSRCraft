@@ -140,9 +140,10 @@ public class RhythmEngine {
 
         if (closestNote != null) {
             closestNote.setHit(true);
+            long signedError = currentSongTimeMs - closestNote.getOffsetMs();
             Judgement judgement = Judgement.fromDelta(minDelta);
             this.lastJudgement = judgement;
-            this.scoreTracker.registerJudgement(judgement);
+            this.scoreTracker.registerJudgement(judgement, currentSongTimeMs, signedError, true);
             this.pendingVisualEvents.add(new HitEvent(lane, judgement));
             applyHpJudgement(judgement);
 
@@ -183,7 +184,7 @@ public class RhythmEngine {
                     long absDelta = Math.abs(deltaFromTail);
                     Judgement tailJudgement = Judgement.fromDelta(absDelta);
                     this.lastJudgement = tailJudgement;
-                    this.scoreTracker.registerJudgement(tailJudgement);
+                    this.scoreTracker.registerJudgement(tailJudgement, currentSongTimeMs, deltaFromTail, true);
                     this.pendingVisualEvents.add(new HitEvent(lane, tailJudgement));
                     applyHpJudgement(tailJudgement);
                     return tailJudgement;

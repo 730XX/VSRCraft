@@ -12,7 +12,9 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,6 +34,10 @@ public class ResultsScreen extends Screen {
     private final boolean isNewRecord;
     private final int previousBestScore;
     private final ReplayData sessionReplay;
+    private final String maPfRatio;
+    private final double unstableRate;
+    private final double meanErrorMs;
+    private final List<ScoreTracker.HitSample> hitSamples;
 
     private final ScreenTransition transition = new ScreenTransition(320L);
 
@@ -51,6 +57,31 @@ public class ResultsScreen extends Screen {
         this.isNewRecord = isNewRecord;
         this.previousBestScore = previousBestScore;
         this.sessionReplay = sessionReplay;
+        this.maPfRatio = tracker.getFormattedMaPfRatio();
+        this.unstableRate = tracker.getUnstableRate();
+        this.meanErrorMs = tracker.getMeanErrorMs();
+        this.hitSamples = new ArrayList<>(tracker.getHitSamples());
+    }
+
+    public ResultsScreen(Beatmap beatmap, int score, float accuracy, int maxCombo, String rank) {
+        super(Component.literal("VSRCraft - Resultados: " + beatmap.getTitle()));
+        this.beatmap = beatmap;
+        this.score = score;
+        this.accuracy = accuracy;
+        this.maxCombo = maxCombo;
+        this.rank = rank != null ? rank : "D";
+        this.judgementCounts = new EnumMap<>(Judgement.class);
+        for (Judgement j : Judgement.values()) {
+            this.judgementCounts.put(j, 0);
+        }
+        this.totalJudged = 1;
+        this.isNewRecord = false;
+        this.previousBestScore = score;
+        this.sessionReplay = null;
+        this.maPfRatio = "-";
+        this.unstableRate = 0.0;
+        this.meanErrorMs = 0.0;
+        this.hitSamples = List.of();
     }
 
     @Override
@@ -173,11 +204,11 @@ public class ResultsScreen extends Screen {
         drawBorder(g, x, y, w, h, 0xFF26334D);
 
         int centerX = x + w / 2;
-        g.drawCenteredString(this.font, "§7RANGO FINAL", centerX, y + 10, 0xFF8899AA);
+        g.drawCenteredString(this.font, "§7RANGO FINAL", centerX, y + 8, 0xFF8899AA);
 
         // Letra de rango gigante escalada con pop sutil
-        float scale = 8.0f * (0.85f + 0.15f * progress);
-        int rankCenterY = y + 82;
+        float scale = 6.2f * (0.85f + 0.15f * progress);
+        int rankCenterY = y + Math.max(46, Math.min(68, (h - 132) / 2 + 18));
         g.pose().pushMatrix();
         g.pose().translate(centerX, rankCenterY);
         g.pose().scale(scale, scale);
@@ -185,29 +216,44 @@ public class ResultsScreen extends Screen {
         g.drawString(this.font, this.rank, -rw / 2, -4, rankColor, true);
         g.pose().popMatrix();
 
-        // Tarjetas de Score, Accuracy y Max Combo
-        int cardX = x + 12;
-        int cardW = w - 24;
-        int cursorY = y + Math.max(76, h - 108);
-        int cardH = 26;
-        int gap = 6;
+        // Tarjetas de métricas (Score, Acc+Combo, MA:PF+UR, Mean Error)
+        int cardX = x + 10;
+        int cardW = w - 20;
+        int cardH = 24;
+        int gap = 5;
+        int totalMetricsH = cardH * 4 + gap * 3;
+        int cursorY = y + h - totalMetricsH - 10;
 
         int animatedScore = Math.round(this.score * progress);
         drawMetricRow(g, cardX, cursorY, cardW, cardH, "SCORE TOTAL", String.format(Locale.ROOT, "%,d", animatedScore), 0xFFFFFFFF);
         cursorY += cardH + gap;
 
-        drawMetricRow(g, cardX, cursorY, cardW, cardH, "PRECISIÓN (ACC)", String.format(Locale.ROOT, "%.2f%%", this.accuracy), 0xFF00E5FF);
+        int halfW = (cardW - 5) / 2;
+        drawMetricRow(g, cardX, cursorY, halfW, cardH, "PRECISIÓN", String.format(Locale.ROOT, "%.2f%%", this.accuracy), 0xFF00E5FF);
+        drawMetricRow(g, cardX + halfW + 5, cursorY, cardW - halfW - 5, cardH, "MAX COMBO", this.maxCombo + "x", 0xFFFFCA28);
         cursorY += cardH + gap;
 
-        drawMetricRow(g, cardX, cursorY, cardW, cardH, "COMBO MÁXIMO", this.maxCombo + "x", 0xFFFFCA28);
+        drawMetricRow(g, cardX, cursorY, halfW, cardH, "RATIO MA:PF", this.maPfRatio, 0xFF80DEEA);
+        String urStr = this.hitSamples.size() >= 2 ? String.format(Locale.ROOT, "%.2f", this.unstableRate) : "-";
+        drawMetricRow(g, cardX + halfW + 5, cursorY, cardW - halfW - 5, cardH, "UNSTABLE RATE", urStr, 0xFFFF9E80);
+        cursorY += cardH + gap;
+
+        String meanStr;
+        if (this.hitSamples.isEmpty()) {
+            meanStr = "-";
+        } else {
+            String dir = Math.abs(this.meanErrorMs) < 0.5 ? "Exacto" : (this.meanErrorMs < 0 ? "Early" : "Late");
+            meanStr = String.format(Locale.ROOT, "%+.1f ms (%s)", this.meanErrorMs, dir);
+        }
+        drawMetricRow(g, cardX, cursorY, cardW, cardH, "ERROR PROMEDIO", meanStr, 0xFFB2FF59);
     }
 
     private void renderRightJudgementPanel(GuiGraphics g, int x, int y, int w, int h, float progress) {
         g.fill(x, y, x + w, y + h, 0xD8111722);
         drawBorder(g, x, y, w, h, 0xFF26334D);
 
-        g.drawString(this.font, "§7RESUMEN DE HITS:", x + 12, y + 10, 0xFF8899AA, false);
-        g.fill(x + 12, y + 22, x + w - 12, y + 23, 0x33FFFFFF);
+        g.drawString(this.font, "§7RESUMEN DE HITS:", x + 12, y + 9, 0xFF8899AA, false);
+        g.fill(x + 12, y + 20, x + w - 12, y + 21, 0x33FFFFFF);
 
         Judgement[] order = {
                 Judgement.MARVELOUS,
@@ -217,9 +263,10 @@ public class ResultsScreen extends Screen {
                 Judgement.MISS
         };
 
-        int startY = y + 32;
-        int availableH = Math.max(100, h - 44);
-        int rowSpacing = Math.min(34, availableH / order.length);
+        int startY = y + 26;
+        int graphReserveH = Math.max(66, (int) (h * 0.38f));
+        int availableBarsH = Math.max(85, h - 36 - graphReserveH);
+        int rowSpacing = Math.max(17, Math.min(24, availableBarsH / order.length));
         int barX = x + 12;
         int barW = w - 24;
 
@@ -237,13 +284,53 @@ public class ResultsScreen extends Screen {
             int countW = this.font.width(countText);
             g.drawString(this.font, countText, barX + barW - countW, rowY, 0xFFE0E0E0, false);
 
-            int barTop = rowY + 11;
-            int barH = 6;
+            int barTop = rowY + 10;
+            int barH = 4;
             g.fill(barX, barTop, barX + barW, barTop + barH, 0xFF0A0E16);
             int fillW = Math.round(barW * ratio * progress);
             if (fillW > 0) {
                 g.fill(barX, barTop, barX + fillW, barTop + barH, color);
             }
+        }
+
+        // Gráfico de dispersión de Timing (Hit Error Graph)
+        int graphLabelY = startY + order.length * rowSpacing + 4;
+        int graphX = barX;
+        int graphY = graphLabelY + 11;
+        int graphW = barW;
+        int graphH = Math.max(36, (y + h - 10) - graphY);
+
+        g.drawString(this.font, "§7GRÁFICO DE TIMING  §8(LATE ↑ / EARLY ↓)", graphX, graphLabelY, 0xFF8899AA, false);
+        g.fill(graphX, graphY, graphX + graphW, graphY + graphH, 0xB8080B12);
+        drawBorder(g, graphX, graphY, graphW, graphH, 0xFF1F2B40);
+
+        int midY = graphY + graphH / 2;
+        // Bandas de referencia ±45ms y línea central 0ms
+        int band45 = Math.round((45.0f / 140.0f) * (graphH / 2.0f));
+        g.fill(graphX + 1, midY - band45, graphX + graphW - 1, midY - band45 + 1, 0x2200E5FF);
+        g.fill(graphX + 1, midY + band45, graphX + graphW - 1, midY + band45 + 1, 0x2200E5FF);
+        g.fill(graphX + 1, midY, graphX + graphW - 1, midY + 1, 0x55FFFFFF);
+
+        if (this.hitSamples.isEmpty()) {
+            g.drawCenteredString(this.font, "Sin datos de timing registrados", graphX + graphW / 2, midY - 4, 0xFF556677);
+            return;
+        }
+
+        long durationMs = Math.max(1L, this.beatmap.getDurationMs());
+        int plotW = Math.max(1, graphW - 4);
+        int maxHalfH = Math.max(4, (graphH / 2) - 3);
+        int limitCount = Math.max(1, Math.round(this.hitSamples.size() * progress));
+
+        for (int i = 0; i < limitCount; i++) {
+            ScoreTracker.HitSample sample = this.hitSamples.get(i);
+            double tx = Math.max(0.0, Math.min(1.0, sample.songTimeMs() / (double) durationMs));
+            int px = graphX + 2 + (int) Math.round(tx * plotW);
+
+            double clampedErr = Math.max(-140.0, Math.min(140.0, sample.errorMs()));
+            // Positivo (Late) hacia arriba, Negativo (Early) hacia abajo
+            int py = midY - (int) Math.round((clampedErr / 140.0) * maxHalfH);
+            int dotColor = (sample.judgement().getColor() & 0x00FFFFFF) | 0xCC000000;
+            g.fill(px, py, px + 2, py + 2, dotColor);
         }
     }
 

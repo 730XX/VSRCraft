@@ -496,8 +496,10 @@ public class RhythmGameScreen extends Screen {
             g.fill(hoverX, PROGRESS_BAR_Y - 1, hoverX + 1, PROGRESS_BAR_Y + PROGRESS_BAR_H + 1, 0xFFFFFFFF);
         }
 
-        String pctText = String.format("-%d%%", pctRemaining);
-        g.drawString(this.font, pctText, PROGRESS_BAR_X + PROGRESS_BAR_W + 6, PROGRESS_BAR_Y - 1, hoverSeek ? 0xFFFFFFFF : 0xFF99AABB, false);
+        long remainingMs = Math.max(0L, durationMs - Math.max(0L, currentSongTimeLong));
+        long remSec = (remainingMs + 999L) / 1000L;
+        String timeText = String.format("-%d:%02d", remSec / 60L, remSec % 60L);
+        g.drawString(this.font, timeText, PROGRESS_BAR_X + PROGRESS_BAR_W + 6, PROGRESS_BAR_Y - 1, hoverSeek ? 0xFFFFFFFF : 0xFF99AABB, false);
     }
 
     private void seekReplayTo(long targetSongMs) {

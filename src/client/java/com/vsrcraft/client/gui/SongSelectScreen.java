@@ -7,6 +7,8 @@ import com.vsrcraft.client.domain.BeatmapRepository;
 import com.vsrcraft.client.domain.BeatmapSet;
 import com.vsrcraft.client.domain.ReplayData;
 import com.vsrcraft.client.domain.ReplayRepository;
+import com.vsrcraft.client.domain.ScoreTracker;
+import com.vsrcraft.client.engine.RhythmEngine;
 import com.vsrcraft.client.parser.OsrReplayParser;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -87,6 +89,8 @@ public class SongSelectScreen extends Screen {
     private Button playButton;
     private Button replayButton;
     private ReplayData selectedReplayMeta = null;
+    private int recordBoxX, recordBoxY, recordBoxW, recordBoxH;
+    private boolean recordBoxClickable = false;
     private boolean transitioningToSubScreen = false;
     private boolean hasTriggeredInitialPreview = false;
     private final ScreenTransition transition = new ScreenTransition(300L);
@@ -376,6 +380,44 @@ public class SongSelectScreen extends Screen {
         this.statusMessageUntilMs = System.currentTimeMillis() + 4000L;
     }
 
+    private void openSelectedResults() {
+        if (this.selectedBeatmap == null || this.minecraft == null || this.transition.isExiting()) return;
+        final Beatmap targetMap = this.selectedBeatmap;
+        final ReplayData replay = this.selectedReplayMeta;
+        final VSRCraftSettings.BeatmapRecord record = VSRCraftSettings.get().getPersonalBest(targetMap.getId());
+
+        saveSelectionState();
+        this.transitioningToSubScreen = true;
+        AudioManager.fadeOutMusic(220L);
+
+        if (replay != null && replay.events != null && !replay.events.isEmpty()) {
+            ScoreTracker simTracker = simulateReplayToTracker(targetMap, replay);
+            int prevBest = (record != null) ? record.bestScore : simTracker.getScore();
+            this.transition.startExit(240L, () -> this.minecraft.setScreen(
+                    new ResultsScreen(targetMap, simTracker, false, prevBest, replay)));
+        } else if (record != null && record.bestScore > 0) {
+            this.transition.startExit(240L, () -> this.minecraft.setScreen(
+                    new ResultsScreen(targetMap, record.bestScore, record.bestAccuracy, record.bestCombo, record.bestRank)));
+        }
+    }
+
+    private static ScoreTracker simulateReplayToTracker(Beatmap map, ReplayData replay) {
+        RhythmEngine sim = new RhythmEngine(map);
+        sim.start(0);
+        int keyCount = map.getKeyCount();
+        for (ReplayData.ReplayEvent ev : replay.events) {
+            if (ev.lane < 0 || ev.lane >= keyCount) continue;
+            sim.update(ev.timeMs);
+            if (ev.pressed) {
+                sim.onLanePressed(ev.lane, ev.timeMs);
+            } else {
+                sim.onLaneReleased(ev.lane, ev.timeMs);
+            }
+        }
+        sim.update(map.getDurationMs() + 1000L);
+        return sim.getScoreTracker();
+    }
+
     private void watchSelectedReplay() {
         if (this.selectedBeatmap == null || this.minecraft == null || this.transition.isExiting()) return;
         ReplayData replay = ReplayRepository.loadReplay(this.selectedBeatmap);
@@ -531,7 +573,7 @@ public class SongSelectScreen extends Screen {
         g.drawString(this.font, countBadge, this.width - 74 - countW, 10, 0xFF00E5FF, true);
 
         // 3. Renderizar Columna Izquierda (Detalle técnico de la dificultad seleccionada)
-        renderLeftDetailsColumn(g);
+        renderLeftDetailsColumn(g, mouseX, mouseY);
 
         // 4. Renderizar Columna Derecha (Acordeón de canciones y dificultades)
         renderRightSongListColumn(g, mouseX, mouseY);
@@ -560,7 +602,7 @@ public class SongSelectScreen extends Screen {
         this.transition.renderOverlay(g, this.width, this.height);
     }
 
-    private void renderLeftDetailsColumn(GuiGraphics g) {
+    private void renderLeftDetailsColumn(GuiGraphics g, int mouseX, int mouseY) {
         g.fill(leftPanelX, leftPanelY, leftPanelX + leftPanelW, leftPanelY + leftPanelH, 0xD8121722);
         drawBorder(g, leftPanelX, leftPanelY, leftPanelW, leftPanelH, 0xFF26334D);
 
@@ -621,15 +663,28 @@ public class SongSelectScreen extends Screen {
         drawStatCell(g, innerX + cellW + colGap, yCursor, cellW, cellH, "VEL. SCROLL", scrollText, 0xFFBA68C8);
         yCursor += cellH + 8;
 
-        // Récord Personal
+        // Récord Personal / Replay guardado (clic para abrir ResultsScreen)
         int playBtnTop = leftPanelY + leftPanelH - 32;
         int recordBoxH = playBtnTop - yCursor - 2;
+        this.recordBoxClickable = false;
         if (recordBoxH >= 32) {
-            g.fill(innerX, yCursor, innerX + maxTextW, yCursor + recordBoxH, 0x990B0E17);
-            drawBorder(g, innerX, yCursor, maxTextW, recordBoxH, 0xFF1F2B40);
-
             VSRCraftSettings.BeatmapRecord record = VSRCraftSettings.get().getPersonalBest(map.getId());
-            if (record != null && record.bestScore > 0) {
+            boolean hasPersonal = record != null && record.bestScore > 0;
+            boolean hasReplay = this.selectedReplayMeta != null;
+            this.recordBoxClickable = hasPersonal || hasReplay;
+            this.recordBoxX = innerX;
+            this.recordBoxY = yCursor;
+            this.recordBoxW = maxTextW;
+            this.recordBoxH = recordBoxH;
+
+            boolean hoverRecord = this.recordBoxClickable
+                    && mouseX >= innerX && mouseX <= innerX + maxTextW
+                    && mouseY >= yCursor && mouseY <= yCursor + recordBoxH;
+
+            g.fill(innerX, yCursor, innerX + maxTextW, yCursor + recordBoxH, hoverRecord ? 0xBB121A2B : 0x990B0E17);
+            drawBorder(g, innerX, yCursor, maxTextW, recordBoxH, hoverRecord ? 0xFF00E5FF : 0xFF1F2B40);
+
+            if (hasPersonal) {
                 g.drawString(this.font, "§7RÉCORD PERSONAL", innerX + 6, yCursor + 5, 0xFF8899AA, false);
                 int rankColor = getRankColor(record.bestRank);
                 String rankLabel = "§l" + record.bestRank;
@@ -643,7 +698,7 @@ public class SongSelectScreen extends Screen {
                     String accComboLine = String.format(Locale.ROOT, "Acc: %.2f%%  •  Combo: %dx", record.bestAccuracy, record.bestCombo);
                     g.drawString(this.font, accComboLine, innerX + 6, yCursor + 28, 0xFF80DEEA, false);
                 }
-            } else if (this.selectedReplayMeta != null) {
+            } else if (hasReplay) {
                 String headerLabel = (this.selectedReplayMeta.playerName != null && !this.selectedReplayMeta.playerName.isEmpty())
                         ? "§eREPLAY // " + ellipsize(this.selectedReplayMeta.playerName, maxTextW - 70)
                         : "§eREPLAY GUARDADO";
@@ -665,6 +720,12 @@ public class SongSelectScreen extends Screen {
             } else {
                 g.drawString(this.font, "§7RÉCORD PERSONAL", innerX + 6, yCursor + 5, 0xFF8899AA, false);
                 g.drawString(this.font, "Sin récord registrado aún", innerX + 6, yCursor + 18, 0xFF666677, false);
+            }
+
+            if (hoverRecord && recordBoxH >= 42) {
+                String hint = "Clic: Ver Resultados";
+                int hintW = this.font.width(hint);
+                g.drawString(this.font, hint, innerX + maxTextW - hintW - 6, yCursor + recordBoxH - 11, 0xFF00E5FF, false);
             }
         }
     }
@@ -827,6 +888,13 @@ public class SongSelectScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
         double mouseX = event.x();
         double mouseY = event.y();
+
+        if (event.button() == 0 && this.recordBoxClickable
+                && mouseX >= this.recordBoxX && mouseX <= this.recordBoxX + this.recordBoxW
+                && mouseY >= this.recordBoxY && mouseY <= this.recordBoxY + this.recordBoxH) {
+            openSelectedResults();
+            return true;
+        }
 
         if (mouseX >= listStartX && mouseX <= listStartX + listWidth
                 && mouseY >= listStartY && mouseY <= listStartY + listHeight) {
