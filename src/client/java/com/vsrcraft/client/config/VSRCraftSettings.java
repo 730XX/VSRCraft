@@ -101,6 +101,9 @@ public class VSRCraftSettings {
     public NoteShape noteShape = NoteShape.BARS;
     public ColorPreset colorPreset = ColorPreset.CLASSIC;
     public int lnCutMs = 0;                // Percy LN: recorte visual de cola en ms (0 = normal)
+    public boolean enableHitErrorBar = true; // Mostrar Hit Error Bar en vivo
+    public int hitErrorBarWidth = 132;       // Ancho del Hit Error Bar (80..180 px)
+    public int hudOffsetY = 0;               // Desplazamiento vertical de Combo + Juicio + Hit Error (-120..120 px)
 
     public NoteShape getNoteShape() {
         return noteShape != null ? noteShape : NoteShape.BARS;
@@ -193,6 +196,10 @@ public class VSRCraftSettings {
                 instance.colorPreset = ColorPreset.CLASSIC;
             }
             instance.lnCutMs = Math.max(0, Math.min(60, instance.lnCutMs));
+            if (instance.hitErrorBarWidth < 80 || instance.hitErrorBarWidth > 180) {
+                instance.hitErrorBarWidth = 132;
+            }
+            instance.hudOffsetY = Math.max(-120, Math.min(120, instance.hudOffsetY));
         }
     }
 

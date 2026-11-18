@@ -416,44 +416,46 @@ public class VSRSettingsScreen extends Screen {
             }
         });
 
-        // Toggle: Hit Glow de Carriles
+        int halfW = (w - 4) / 2;
+        int rowY = startY + (row++ * spacing);
+
+        // Toggles en paralelo: Hit Glow + Voxel Sparks
         Button laneGlowToggle = Button.builder(
-                getLaneGlowToggleText(settings.enableLaneGlow),
+                Component.literal("Hit Glow: " + (settings.enableLaneGlow ? "§aON" : "§cOFF")),
                 btn -> {
                     settings.enableLaneGlow = !settings.enableLaneGlow;
-                    btn.setMessage(getLaneGlowToggleText(settings.enableLaneGlow));
+                    btn.setMessage(Component.literal("Hit Glow: " + (settings.enableLaneGlow ? "§aON" : "§cOFF")));
                 }
-        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        ).bounds(x, rowY, halfW, 20).build();
         this.addRenderableWidget(laneGlowToggle);
 
-        // Toggle: Efectos de Golpe (Voxel Sparks)
         Button hitEffectsToggle = Button.builder(
-                getHitEffectsToggleText(settings.enableHitEffects),
+                Component.literal("Chispas: " + (settings.enableHitEffects ? "§aON" : "§cOFF")),
                 btn -> {
                     settings.enableHitEffects = !settings.enableHitEffects;
-                    btn.setMessage(getHitEffectsToggleText(settings.enableHitEffects));
+                    btn.setMessage(Component.literal("Chispas: " + (settings.enableHitEffects ? "§aON" : "§cOFF")));
                 }
-        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        ).bounds(x + halfW + 4, rowY, w - halfW - 4, 20).build();
         this.addRenderableWidget(hitEffectsToggle);
 
-        // Selector cíclico: Forma de Notas (Barras / Círculos / Flechas)
+        // Selectores en paralelo: Forma de Notas + Tema de Color
+        rowY = startY + (row++ * spacing);
         Button noteShapeBtn = Button.builder(
-                Component.literal("Forma de Notas: §b" + settings.getNoteShape().getDisplayName()),
+                Component.literal("Forma: §b" + settings.getNoteShape().getDisplayName()),
                 btn -> {
                     settings.noteShape = settings.getNoteShape().next();
-                    btn.setMessage(Component.literal("Forma de Notas: §b" + settings.getNoteShape().getDisplayName()));
+                    btn.setMessage(Component.literal("Forma: §b" + settings.getNoteShape().getDisplayName()));
                 }
-        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        ).bounds(x, rowY, halfW, 20).build();
         this.addRenderableWidget(noteShapeBtn);
 
-        // Selector cíclico: Tema de Color
         Button colorPresetBtn = Button.builder(
-                Component.literal("Tema de Color: §b" + settings.getColorPreset().getDisplayName()),
+                Component.literal("Color: §b" + settings.getColorPreset().getDisplayName()),
                 btn -> {
                     settings.colorPreset = settings.getColorPreset().next();
-                    btn.setMessage(Component.literal("Tema de Color: §b" + settings.getColorPreset().getDisplayName()));
+                    btn.setMessage(Component.literal("Color: §b" + settings.getColorPreset().getDisplayName()));
                 }
-        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        ).bounds(x + halfW + 4, rowY, w - halfW - 4, 20).build();
         this.addRenderableWidget(colorPresetBtn);
 
         // Slider: Percy LN (Recorte visual de cola en ms, máx 60ms)
@@ -472,6 +474,50 @@ public class VSRSettingsScreen extends Screen {
                 settings.lnCutMs = Math.max(0, Math.min(60, (int) Math.round(this.value * 60.0)));
                 // Congelar el preview justo en la cola de la LN para comparar el corte en tiempo real
                 freezePreviewOnHoldNote();
+            }
+        });
+
+        // Toggle: Hit Error Bar
+        Button hitErrorToggle = Button.builder(
+                Component.literal("Hit Error Bar: " + (settings.enableHitErrorBar ? "§aActivada" : "§cDesactivada")),
+                btn -> {
+                    settings.enableHitErrorBar = !settings.enableHitErrorBar;
+                    btn.setMessage(Component.literal("Hit Error Bar: " + (settings.enableHitErrorBar ? "§aActivada" : "§cDesactivada")));
+                }
+        ).bounds(x, startY + (row++ * spacing), w, 20).build();
+        this.addRenderableWidget(hitErrorToggle);
+
+        // Slider: Ancho del Hit Error Bar (80..180 px)
+        this.addRenderableWidget(new AbstractSliderButton(
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal("Ancho Hit Error: " + settings.hitErrorBarWidth + " px"),
+                (settings.hitErrorBarWidth - 80) / 100.0
+        ) {
+            @Override
+            protected void updateMessage() {
+                int px = 80 + (int) Math.round(this.value * 100.0);
+                this.setMessage(Component.literal("Ancho Hit Error: " + px + " px"));
+            }
+            @Override
+            protected void applyValue() {
+                settings.hitErrorBarWidth = 80 + (int) Math.round(this.value * 100.0);
+            }
+        });
+
+        // Slider: Posición vertical del HUD (Combo + Juicio + Hit Error)
+        this.addRenderableWidget(new AbstractSliderButton(
+                x, startY + (row++ * spacing), w, 20,
+                Component.literal("Posición Combo/Juicio (Y): " + (settings.hudOffsetY >= 0 ? "+" : "") + settings.hudOffsetY + " px"),
+                (settings.hudOffsetY + 120) / 240.0
+        ) {
+            @Override
+            protected void updateMessage() {
+                int off = -120 + (int) Math.round(this.value * 240.0);
+                this.setMessage(Component.literal("Posición Combo/Juicio (Y): " + (off >= 0 ? "+" : "") + off + " px"));
+            }
+            @Override
+            protected void applyValue() {
+                settings.hudOffsetY = Math.max(-120, Math.min(120, -120 + (int) Math.round(this.value * 240.0)));
             }
         });
     }
@@ -533,6 +579,9 @@ public class VSRSettingsScreen extends Screen {
         s.noteShape = VSRCraftSettings.NoteShape.BARS;
         s.colorPreset = VSRCraftSettings.ColorPreset.CLASSIC;
         s.lnCutMs = 0;
+        s.enableHitErrorBar = true;
+        s.hitErrorBarWidth = 132;
+        s.hudOffsetY = 0;
         s.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
         s.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
         VSRCraftSettings.save();
@@ -812,6 +861,21 @@ public class VSRSettingsScreen extends Screen {
                     g.fill(noteX, topY, noteX + noteWidth, bottomY, noteColor);
                 }
             }
+        }
+
+        // 4. Mini-preview de Combo + Juicio + Hit Error Bar (refleja hudOffsetY y ancho)
+        int previewCenterX = rightPanelX + (rightPanelW / 2);
+        int previewHudCenterY = trackAreaTop + (trackAreaH / 2) + Math.round(VSRCraftSettings.get().hudOffsetY * 0.65f);
+        g.drawCenteredString(this.font, "128 COMBO", previewCenterX, previewHudCenterY - 22, 0xFF00FFCC);
+        g.drawCenteredString(this.font, "MARVELOUS", previewCenterX, previewHudCenterY - 10, 0xFF00E5FF);
+        if (VSRCraftSettings.get().enableHitErrorBar) {
+            int barW = Math.min(rightPanelW - 24, VSRCraftSettings.get().hitErrorBarWidth);
+            int barX = previewCenterX - (barW / 2);
+            int barY = previewHudCenterY + 2;
+            g.fill(barX, barY, barX + barW, barY + 4, 0x88080B12);
+            g.fill(previewCenterX - 10, barY - 1, previewCenterX - 8, barY + 5, 0xFF00E5FF);
+            g.fill(previewCenterX + 6, barY - 1, previewCenterX + 8, barY + 5, 0xFFFFCA28);
+            g.fill(previewCenterX, barY - 3, previewCenterX + 1, barY + 7, 0xFFFFFFFF);
         }
 
         g.disableScissor();
