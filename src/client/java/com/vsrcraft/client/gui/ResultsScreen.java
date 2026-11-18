@@ -252,9 +252,6 @@ public class ResultsScreen extends Screen {
         g.fill(x, y, x + w, y + h, 0xD8111722);
         drawBorder(g, x, y, w, h, 0xFF26334D);
 
-        g.drawString(this.font, "§7RESUMEN DE HITS:", x + 12, y + 9, 0xFF8899AA, false);
-        g.fill(x + 12, y + 20, x + w - 12, y + 21, 0x33FFFFFF);
-
         Judgement[] order = {
                 Judgement.MARVELOUS,
                 Judgement.PERFECT,
@@ -300,7 +297,7 @@ public class ResultsScreen extends Screen {
         int graphW = barW;
         int graphH = Math.max(36, (y + h - 10) - graphY);
 
-        g.drawString(this.font, "§7GRÁFICO DE TIMING  §8(LATE ↑ / EARLY ↓)", graphX, graphLabelY, 0xFF8899AA, false);
+        g.drawString(this.font, "§7TIMING  §8(LATE ↑ / EARLY ↓)", graphX, graphLabelY, 0xFF8899AA, false);
         g.fill(graphX, graphY, graphX + graphW, graphY + graphH, 0xB8080B12);
         drawBorder(g, graphX, graphY, graphW, graphH, 0xFF1F2B40);
 

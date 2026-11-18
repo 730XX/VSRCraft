@@ -671,7 +671,7 @@ public class SongSelectScreen extends Screen {
         g.fill(0, this.height - 18, this.width, this.height, 0xCC0D111A);
         g.fill(0, this.height - 18, this.width, this.height - 17, 0x44FFFFFF);
         String footer = String.format(Locale.ROOT,
-                "Clic: Desplegar/Elegir  |  ENTER / Doble Clic: Jugar  |  Scroll: %.2fx (F3/F4)  |  Rate: %.2fx (F5/F6)  |  Offset: %+dms",
+                "ENTER / Doble Clic: Jugar  |  Scroll: %.2fx (F3/F4)  |  Rate: %.2fx (F5/F6)  |  Offset: %+dms",
                 VSRCraftSettings.get().scrollSpeed, rememberedPlaybackRate, VSRCraftSettings.get().globalAudioOffsetMs);
         g.drawCenteredString(this.font, footer, this.width / 2, this.height - 13, 0xFF99AABB);
 

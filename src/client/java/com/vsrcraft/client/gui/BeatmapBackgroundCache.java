@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * Caché de texturas para imágenes de fondo (.jpg / .png) de beatmaps usadas en banners/cards.
- * Escala automáticamente imágenes grandes a un tamaño compacto para ahorrar VRAM y evitar tirones.
+ * Escala automáticamente imágenes grandes a un tamaño compacto para ahorrar VRAM y evitar stufferings
  */
 public final class BeatmapBackgroundCache {
 
