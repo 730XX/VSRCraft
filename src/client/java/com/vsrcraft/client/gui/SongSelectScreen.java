@@ -1012,19 +1012,35 @@ public class SongSelectScreen extends Screen {
             if (key == GLFW.GLFW_KEY_F3) {
                 VSRCraftSettings.get().scrollSpeed = Math.max(0.2f, VSRCraftSettings.get().scrollSpeed - 0.05f);
                 VSRCraftSettings.save();
+                showStatusMessage(String.format(Locale.ROOT, "Scroll Speed: %.2fx", VSRCraftSettings.get().scrollSpeed), 0xFFBA68C8);
                 return true;
             }
             if (key == GLFW.GLFW_KEY_F4) {
                 VSRCraftSettings.get().scrollSpeed = Math.min(1.5f, VSRCraftSettings.get().scrollSpeed + 0.05f);
                 VSRCraftSettings.save();
+                showStatusMessage(String.format(Locale.ROOT, "Scroll Speed: %.2fx", VSRCraftSettings.get().scrollSpeed), 0xFFBA68C8);
                 return true;
             }
             if (key == GLFW.GLFW_KEY_F5) {
                 rememberedPlaybackRate = Math.max(0.50f, Math.round((rememberedPlaybackRate - 0.05f) * 20.0f) / 20.0f);
+                showStatusMessage(String.format(Locale.ROOT, "Playback Rate: %.2fx", rememberedPlaybackRate), 0xFF55E5FF);
                 return true;
             }
             if (key == GLFW.GLFW_KEY_F6) {
                 rememberedPlaybackRate = Math.min(2.00f, Math.round((rememberedPlaybackRate + 0.05f) * 20.0f) / 20.0f);
+                showStatusMessage(String.format(Locale.ROOT, "Playback Rate: %.2fx", rememberedPlaybackRate), 0xFF55E5FF);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_MINUS || key == GLFW.GLFW_KEY_KP_SUBTRACT) {
+                VSRCraftSettings.get().globalAudioOffsetMs -= 5L;
+                VSRCraftSettings.save();
+                showStatusMessage(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_EQUAL || key == GLFW.GLFW_KEY_KP_ADD) {
+                VSRCraftSettings.get().globalAudioOffsetMs += 5L;
+                VSRCraftSettings.save();
+                showStatusMessage(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
                 return true;
             }
         }

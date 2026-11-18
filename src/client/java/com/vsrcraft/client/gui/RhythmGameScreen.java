@@ -61,6 +61,10 @@ public class RhythmGameScreen extends Screen {
     private static final int PROGRESS_BAR_W = 140;
     private static final int PROGRESS_BAR_H = 5;
 
+    private String hudToastText = "";
+    private int hudToastColor = 0xFF00E5FF;
+    private long hudToastUntilMs = 0L;
+
     // Grabación y Reproducción de Replays
     private final ReplayData activeReplay;
     private final float playbackRate;
@@ -394,6 +398,10 @@ public class RhythmGameScreen extends Screen {
             });
         }
 
+        if (!this.hudToastText.isEmpty() && System.currentTimeMillis() < this.hudToastUntilMs) {
+            renderHudToast(guiGraphics);
+        }
+
         if (this.pauseMenuOpen) {
             renderPauseOverlay(guiGraphics, mouseX, mouseY);
         }
@@ -402,6 +410,24 @@ public class RhythmGameScreen extends Screen {
             AudioManager.updatePreview();
         }
         this.transition.renderOverlay(guiGraphics, this.width, this.height);
+    }
+
+    private void showHudToast(String text, int color) {
+        this.hudToastText = text;
+        this.hudToastColor = color;
+        this.hudToastUntilMs = System.currentTimeMillis() + 1800L;
+    }
+
+    private void renderHudToast(GuiGraphics g) {
+        int boxW = this.font.width(this.hudToastText) + 18;
+        int boxX = (this.width - boxW) / 2;
+        int boxY = 26;
+        g.fill(boxX, boxY, boxX + boxW, boxY + 18, 0xDF0B101A);
+        g.fill(boxX, boxY, boxX + boxW, boxY + 1, this.hudToastColor);
+        g.fill(boxX, boxY + 17, boxX + boxW, boxY + 18, this.hudToastColor);
+        g.fill(boxX, boxY, boxX + 1, boxY + 18, this.hudToastColor);
+        g.fill(boxX + boxW - 1, boxY, boxX + boxW, boxY + 18, this.hudToastColor);
+        g.drawCenteredString(this.font, this.hudToastText, this.width / 2, boxY + 5, this.hudToastColor);
     }
 
     private void renderPauseOverlay(GuiGraphics g, int mouseX, int mouseY) {
@@ -690,22 +716,26 @@ public class RhythmGameScreen extends Screen {
         if (event.key() == GLFW.GLFW_KEY_F3) {
             VSRCraftSettings.get().scrollSpeed = Math.max(0.2f, VSRCraftSettings.get().scrollSpeed - 0.05f);
             VSRCraftSettings.save();
+            showHudToast(String.format(Locale.ROOT, "Scroll Speed: %.2fx", VSRCraftSettings.get().scrollSpeed), 0xFFBA68C8);
             return true;
         }
         if (event.key() == GLFW.GLFW_KEY_F4) {
             VSRCraftSettings.get().scrollSpeed = Math.min(1.5f, VSRCraftSettings.get().scrollSpeed + 0.05f);
             VSRCraftSettings.save();
+            showHudToast(String.format(Locale.ROOT, "Scroll Speed: %.2fx", VSRCraftSettings.get().scrollSpeed), 0xFFBA68C8);
             return true;
         }
 
-        if (event.key() == GLFW.GLFW_KEY_LEFT || event.key() == GLFW.GLFW_KEY_MINUS) {
+        if (event.key() == GLFW.GLFW_KEY_LEFT || event.key() == GLFW.GLFW_KEY_MINUS || event.key() == GLFW.GLFW_KEY_KP_SUBTRACT) {
             VSRCraftSettings.get().globalAudioOffsetMs -= 5L;
             VSRCraftSettings.save();
+            showHudToast(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
             return true;
         }
-        if (event.key() == GLFW.GLFW_KEY_RIGHT || event.key() == GLFW.GLFW_KEY_EQUAL) {
+        if (event.key() == GLFW.GLFW_KEY_RIGHT || event.key() == GLFW.GLFW_KEY_EQUAL || event.key() == GLFW.GLFW_KEY_KP_ADD) {
             VSRCraftSettings.get().globalAudioOffsetMs += 5L;
             VSRCraftSettings.save();
+            showHudToast(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
             return true;
         }
 
