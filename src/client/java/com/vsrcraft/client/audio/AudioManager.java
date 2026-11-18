@@ -97,10 +97,12 @@ public class AudioManager {
     private static long fadeOutStartNano = 0L;
     private static double fadeOutDurationMs = 250.0;
 
-    // Estado del Reloj Maestro Híbrido (OpenAL Sample Offset + Interpolación NanoTime)
+    // Estado del Reloj Maestro PLL (NanoTime continuo + corrección suave de deriva OpenAL)
     private static int lastSampleOffset = -1;
     private static double lastHardwareTimeMs = 0.0;
     private static long lastHardwareUpdateNano = 0L;
+    private static long lastPllTickNano = 0L;
+    private static double pllDriftMs = 0.0;
     private static double lastReturnedTimeMs = 0.0;
     private static long musicFinishedNano = 0L;
 
@@ -321,6 +323,8 @@ public class AudioManager {
         lastSampleOffset = 0;
         lastHardwareTimeMs = 0.0;
         lastHardwareUpdateNano = now;
+        lastPllTickNano = now;
+        pllDriftMs = 0.0;
         lastReturnedTimeMs = 0.0;
         musicFinishedNano = 0L;
         musicPlaying = true;
@@ -341,9 +345,12 @@ public class AudioManager {
             AL10.alSourcePlay(musicSourceId);
         }
 
+        long now = System.nanoTime();
         lastSampleOffset = Math.round(realSeconds * musicSampleRate);
         lastHardwareTimeMs = clampedSongMs;
-        lastHardwareUpdateNano = System.nanoTime();
+        lastHardwareUpdateNano = now;
+        lastPllTickNano = now;
+        pllDriftMs = 0.0;
         lastReturnedTimeMs = clampedSongMs;
         musicFinishedNano = 0L;
         musicPlaying = true;
@@ -361,7 +368,9 @@ public class AudioManager {
         if (musicPlaying && musicSourceId != 0 && musicPaused) {
             AL10.alSourcePlay(musicSourceId);
             musicPaused = false;
-            lastHardwareUpdateNano = System.nanoTime();
+            long now = System.nanoTime();
+            lastHardwareUpdateNano = now;
+            lastPllTickNano = now;
         }
     }
 
@@ -398,24 +407,30 @@ public class AudioManager {
         int state = AL10.alGetSourcei(musicSourceId, AL10.AL_SOURCE_STATE);
 
         if (state == AL10.AL_PLAYING) {
-            int sampleOffset = AL10.alGetSourcei(musicSourceId, AL11.AL_SAMPLE_OFFSET);
-            double hardwareMs = ((sampleOffset * 1000.0) / musicSampleRate) * musicPlaybackRate;
+            double dtMs = Math.max(0.0, (nowNano - lastPllTickNano) / 1_000_000.0);
+            lastPllTickNano = nowNano;
 
+            // Corrección suave PLL: ajusta el ritmo ±3% máximo para absorber el jitter de bloques de OpenAL sin saltos
+            double rateTrim = Math.max(-0.03, Math.min(0.03, pllDriftMs * 0.0025));
+            lastReturnedTimeMs += dtMs * musicPlaybackRate * (1.0 + rateTrim);
+            pllDriftMs -= dtMs * musicPlaybackRate * rateTrim;
+
+            int sampleOffset = AL10.alGetSourcei(musicSourceId, AL11.AL_SAMPLE_OFFSET);
             if (sampleOffset != lastSampleOffset) {
                 lastSampleOffset = sampleOffset;
-                lastHardwareTimeMs = hardwareMs;
+                lastHardwareTimeMs = ((sampleOffset * 1000.0) / musicSampleRate) * musicPlaybackRate;
                 lastHardwareUpdateNano = nowNano;
+                double rawDrift = lastHardwareTimeMs - lastReturnedTimeMs;
+                if (Math.abs(rawDrift) > 75.0) {
+                    // Desfase grande (ej. tirón del SO): resincronizar directo
+                    lastReturnedTimeMs = lastHardwareTimeMs;
+                    pllDriftMs = 0.0;
+                } else {
+                    pllDriftMs = rawDrift;
+                }
             }
 
-            double elapsedSinceUpdateMs = ((nowNano - lastHardwareUpdateNano) / 1_000_000.0) * musicPlaybackRate;
-            double interpolatedMs = lastHardwareTimeMs + Math.min(25.0 * musicPlaybackRate, Math.max(0.0, elapsedSinceUpdateMs));
-
-            if (interpolatedMs < lastReturnedTimeMs && (lastReturnedTimeMs - hardwareMs) < 25.0 * musicPlaybackRate) {
-                interpolatedMs = lastReturnedTimeMs;
-            }
-
-            lastReturnedTimeMs = interpolatedMs;
-            return interpolatedMs;
+            return lastReturnedTimeMs;
         } else if (state == AL10.AL_STOPPED && lastSampleOffset >= 0) {
             if (!musicFinished) {
                 musicFinished = true;

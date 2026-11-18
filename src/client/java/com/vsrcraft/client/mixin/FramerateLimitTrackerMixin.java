@@ -1,6 +1,7 @@
 package com.vsrcraft.client.mixin;
 
 import com.mojang.blaze3d.platform.FramerateLimitTracker;
+import com.vsrcraft.client.gui.ResultsScreen;
 import com.vsrcraft.client.gui.RhythmGameScreen;
 import com.vsrcraft.client.gui.SongSelectScreen;
 import com.vsrcraft.client.gui.VSRSettingsScreen;
@@ -31,8 +32,11 @@ public class FramerateLimitTrackerMixin {
     private void unlockVSRCraftFps(CallbackInfoReturnable<Integer> cir) {
         if (this.minecraft != null) {
             Screen s = this.minecraft.screen;
-            if (s instanceof RhythmGameScreen || s instanceof SongSelectScreen || s instanceof VSRSettingsScreen) {
-                cir.setReturnValue(this.framerateLimit > 0 ? this.framerateLimit : 260);
+            if (s instanceof RhythmGameScreen
+                    || s instanceof SongSelectScreen
+                    || s instanceof VSRSettingsScreen
+                    || s instanceof ResultsScreen) {
+                cir.setReturnValue(Math.max(this.framerateLimit, 260));
             }
         }
     }

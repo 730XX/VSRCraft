@@ -857,6 +857,11 @@ public class RhythmGameScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Evitar el shader de desenfoque Gaussiano de menú de Minecraft para mantener altos Hz estables
+    }
+
+    @Override
     public boolean isPauseScreen() {
         return false;
     }

@@ -57,41 +57,52 @@ public class NoteRenderer {
             // Color de renderizado: si fue cortada o fallada, se oscurece a un gris tenue
             int noteColor = isDropped ? 0x66556677 : baseColor;
 
-            // 1. Renderizar cola / cuerpo de la nota HOLD (con Percy LN visual y punta redondeada)
+            // 1. Renderizar cola / cuerpo de la nota HOLD (con Percy LN visual, punta redondeada y precisión sub-píxel)
             if (isHold) {
                 double headTimeMs = isHolding ? currentSongTimeMs : note.getOffsetMs();
                 double visualEndOffsetMs = Math.max(headTimeMs, endOffsetMs - lnCutMs);
                 double timeUntilHead = headTimeMs - currentSongTimeMs;
                 double timeUntilTail = visualEndOffsetMs - currentSongTimeMs;
 
-                int headY = Math.round(hitCenterY - (float) (timeUntilHead * scrollSpeed));
-                int tailY = Math.round(hitCenterY - (float) (timeUntilTail * scrollSpeed));
+                double exactHeadY = hitCenterY - (timeUntilHead * scrollSpeed);
+                double exactTailY = hitCenterY - (timeUntilTail * scrollSpeed);
+                int baseTailY = (int) Math.floor(exactTailY);
+                float tailFracY = (float) (exactTailY - baseTailY);
+                int adjHeadY = (int) Math.round(exactHeadY - tailFracY);
 
-                if (headY >= 0 && tailY <= screenHeight && headY > tailY) {
+                if (adjHeadY >= 0 && baseTailY <= screenHeight && adjHeadY > baseTailY) {
                     int holdAlphaColor = isDropped ? 0x33445566 : ((noteColor & 0x00FFFFFF) | 0x88000000);
+                    graphics.pose().pushMatrix();
+                    graphics.pose().translate(0.0f, tailFracY);
                     NoteShapeRenderer.drawRoundedHoldBody(
                             graphics,
                             noteX + 4,
                             noteX + noteWidth - 4,
-                            tailY,
-                            headY,
+                            baseTailY,
+                            adjHeadY,
                             0,
                             screenHeight,
                             holdAlphaColor,
                             isHolding
                     );
+                    graphics.pose().popMatrix();
                 }
             }
 
-            // 2. Renderizar cabeza de la nota según el shape elegido
+            // 2. Renderizar cabeza de la nota según el shape elegido con traslación sub-píxel (float)
             // Si está siendo sostenida, la cabeza se ancla fijamente en la línea de impacto
             double effectiveNoteTimeMs = isHolding ? currentSongTimeMs : note.getOffsetMs();
             double timeUntilHit = effectiveNoteTimeMs - currentSongTimeMs;
-            int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
+            double exactCenterY = hitCenterY - (timeUntilHit * scrollSpeed);
+            int baseCenterY = (int) Math.floor(exactCenterY);
+            float fracY = (float) (exactCenterY - baseCenterY);
             int centerX = noteX + noteWidth / 2;
 
-            renderNoteHead(graphics, shape, noteX, noteWidth, centerX, centerY, halfNote, noteHeight, shapeRadius,
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(0.0f, fracY);
+            renderNoteHead(graphics, shape, noteX, noteWidth, centerX, baseCenterY, halfNote, noteHeight, shapeRadius,
                     note.getLane(), laneCount, noteColor, isHolding, screenHeight);
+            graphics.pose().popMatrix();
         }
     }
 

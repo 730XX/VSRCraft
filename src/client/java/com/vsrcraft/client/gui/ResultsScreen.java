@@ -371,6 +371,11 @@ public class ResultsScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Sin blur de menú de fondo para máxima fluidez
+    }
+
+    @Override
     public boolean isPauseScreen() {
         return false;
     }

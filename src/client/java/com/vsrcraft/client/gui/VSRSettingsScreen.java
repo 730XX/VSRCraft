@@ -70,11 +70,10 @@ public class VSRSettingsScreen extends Screen {
 
     private void togglePreviewPause() {
         if (!this.previewPaused) {
-            long now = System.currentTimeMillis();
-            this.frozenPreviewTimeMs = (now - this.previewLoopStart) % LOOP_DURATION_MS;
+            this.frozenPreviewTimeMs = ((System.nanoTime() - this.previewLoopStart) / 1_000_000.0) % LOOP_DURATION_MS;
             this.previewPaused = true;
         } else {
-            this.previewLoopStart = System.currentTimeMillis() - Math.round(this.frozenPreviewTimeMs);
+            this.previewLoopStart = System.nanoTime() - Math.round(this.frozenPreviewTimeMs * 1_000_000.0);
             this.previewPaused = false;
         }
         updatePreviewPauseButtonText();
@@ -93,7 +92,7 @@ public class VSRSettingsScreen extends Screen {
     }
 
     private void initPreviewNotes() {
-        this.previewLoopStart = System.currentTimeMillis();
+        this.previewLoopStart = System.nanoTime();
 
         // Notas de demostración para 4K en bucle continuo
         this.previewNotes4K.clear();
@@ -813,15 +812,14 @@ public class VSRSettingsScreen extends Screen {
             }
         }
 
-        // 3. Notas en bucle continuo (o congeladas si previewPaused)
+        // 3. Notas en bucle continuo con precisión de nanosegundos (o congeladas si previewPaused)
         double currentPreviewTimeMs;
         if (this.previewPaused) {
             currentPreviewTimeMs = this.frozenPreviewTimeMs;
         } else {
-            long now = System.currentTimeMillis();
-            long loopElapsed = (now - this.previewLoopStart) % LOOP_DURATION_MS;
-            currentPreviewTimeMs = loopElapsed;
-            this.frozenPreviewTimeMs = loopElapsed;
+            double elapsedMs = ((System.nanoTime() - this.previewLoopStart) / 1_000_000.0) % LOOP_DURATION_MS;
+            currentPreviewTimeMs = elapsedMs;
+            this.frozenPreviewTimeMs = elapsedMs;
         }
 
         float scrollSpeed = VSRCraftSettings.get().scrollSpeed;
@@ -879,11 +877,15 @@ public class VSRSettingsScreen extends Screen {
                 }
             }
 
-            // Cabeza de la nota
+            // Cabeza de la nota con precisión sub-píxel (float)
             double timeUntilHit = note.getOffsetMs() - currentPreviewTimeMs;
-            int centerY = Math.round(hitCenterY - (float) (timeUntilHit * scrollSpeed));
+            double exactCenterY = hitCenterY - (timeUntilHit * scrollSpeed);
+            int centerY = (int) Math.floor(exactCenterY);
+            float fracY = (float) (exactCenterY - centerY);
             int centerX = noteX + noteWidth / 2;
 
+            g.pose().pushMatrix();
+            g.pose().translate(0.0f, fracY);
             if (shape == VSRCraftSettings.NoteShape.CIRCLES) {
                 if (centerY + previewRadius >= trackAreaTop && centerY - previewRadius <= trackAreaBottom) {
                     NoteShapeRenderer.drawFilledCircle(g, centerX, centerY, previewRadius, noteColor);
@@ -901,6 +903,7 @@ public class VSRSettingsScreen extends Screen {
                     g.fill(noteX, topY, noteX + noteWidth, bottomY, noteColor);
                 }
             }
+            g.pose().popMatrix();
         }
 
         // 4. Mini-preview de Combo + Juicio + Hit Error Bar (refleja hudOffsetY y ancho)
@@ -930,6 +933,16 @@ public class VSRSettingsScreen extends Screen {
         g.fill(x, y + h - 1, x + w, y + h, color);
         g.fill(x, y, x + 1, y + h, color);
         g.fill(x + w - 1, y, x + w, y + h, color);
+    }
+
+    @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Sin blur de menú de fondo para máxima fluidez
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
     }
 
     @Override
