@@ -30,6 +30,7 @@ public class OsuBeatmapParser {
         String source = "";
         String tags = "";
         String audioFilename = "";
+        String backgroundFilename = "";
         long audioLeadInMs = 0L;
         long previewTimeMs = 0L;
         int gameMode = 0; // 0 = standard, 1 = taiko, 2 = catch, 3 = mania
@@ -101,6 +102,21 @@ public class OsuBeatmapParser {
                         } catch (NumberFormatException ignored) {}
                     }
                 }
+                case "Events" -> {
+                    if (backgroundFilename.isEmpty() && (line.startsWith("0,0,") || line.startsWith("0, 0,"))) {
+                        String[] parts = line.split(",");
+                        if (parts.length >= 3) {
+                            String candidate = parts[2].trim();
+                            if (candidate.startsWith("\"") && candidate.endsWith("\"") && candidate.length() >= 2) {
+                                candidate = candidate.substring(1, candidate.length() - 1);
+                            }
+                            String lower = candidate.toLowerCase(java.util.Locale.ROOT);
+                            if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")) {
+                                backgroundFilename = candidate;
+                            }
+                        }
+                    }
+                }
                 case "TimingPoints" -> {
                     if (bpm <= 0) {
                         String[] parts = line.split(",");
@@ -144,6 +160,7 @@ public class OsuBeatmapParser {
                 audioLeadInMs,
                 previewTimeMs
         );
+        beatmap.setBackgroundFilename(backgroundFilename);
 
         for (String objLine : rawHitObjects) {
             parseHitObject(objLine, beatmap, circleSize);

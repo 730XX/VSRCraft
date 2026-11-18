@@ -24,6 +24,8 @@ public class Beatmap {
     private final long audioLeadInMs;
     private final long previewTimeMs;
     private String osuMd5 = "";
+    private String backgroundFilename = "";
+    private String backgroundFilePath = "";
     private final List<Note> notes;
 
     // Estadísticas cacheadas
@@ -175,5 +177,9 @@ public class Beatmap {
     public long getPreviewTimeMs() { return previewTimeMs; }
     public String getOsuMd5() { return osuMd5; }
     public void setOsuMd5(String osuMd5) { this.osuMd5 = osuMd5 != null ? osuMd5 : ""; }
+    public String getBackgroundFilename() { return backgroundFilename; }
+    public void setBackgroundFilename(String backgroundFilename) { this.backgroundFilename = backgroundFilename != null ? backgroundFilename : ""; }
+    public String getBackgroundFilePath() { return backgroundFilePath; }
+    public void setBackgroundFilePath(String backgroundFilePath) { this.backgroundFilePath = backgroundFilePath != null ? backgroundFilePath : ""; }
     public List<Note> getNotes() { return notes; }
 }

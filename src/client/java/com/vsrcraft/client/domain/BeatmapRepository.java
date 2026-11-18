@@ -144,6 +144,10 @@ public class BeatmapRepository {
 
             if (audioFile != null && audioFile.exists()) {
                 map.setAudioResourcePath("file:" + audioFile.getAbsolutePath());
+                File bgFile = resolveBackgroundFile(parentDir, map.getBackgroundFilename());
+                if (bgFile != null && bgFile.exists()) {
+                    map.setBackgroundFilePath(bgFile.getAbsolutePath());
+                }
                 registerBeatmap(map, setMap);
             }
         } catch (Exception e) {
@@ -170,6 +174,21 @@ public class BeatmapRepository {
         for (Beatmap map : getBeatmaps()) {
             if (target.equalsIgnoreCase(map.getOsuMd5())) {
                 return map;
+            }
+        }
+        return null;
+    }
+
+    private static File resolveBackgroundFile(File parentDir, String backgroundFilename) {
+        if (parentDir == null || !parentDir.isDirectory()) return null;
+        if (backgroundFilename != null && !backgroundFilename.isEmpty()) {
+            File candidate = new File(parentDir, backgroundFilename);
+            if (candidate.exists() && candidate.isFile()) {
+                return candidate;
+            }
+            File[] matches = parentDir.listFiles((d, name) -> name.equalsIgnoreCase(backgroundFilename));
+            if (matches != null && matches.length > 0) {
+                return matches[0];
             }
         }
         return null;
@@ -241,7 +260,8 @@ public class BeatmapRepository {
                 String lower = entryName.toLowerCase(Locale.ROOT);
                 boolean isOsu = lower.endsWith(".osu");
                 boolean isAudio = lower.endsWith(".ogg") || lower.endsWith(".mp3") || lower.endsWith(".wav");
-                if (!isOsu && !isAudio) {
+                boolean isImage = lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png");
+                if (!isOsu && !isAudio && !isImage) {
                     zis.closeEntry();
                     continue;
                 }

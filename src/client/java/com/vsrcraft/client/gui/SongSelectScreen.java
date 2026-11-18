@@ -615,9 +615,15 @@ public class SongSelectScreen extends Screen {
         float stars = map.getEstimatedStarRating();
         int diffColor = getDifficultyColor(stars);
 
-        // Banner superior
+        // Banner superior (con imagen de fondo del .osu si existe)
         int bannerH = 58;
-        g.fillGradient(leftPanelX + 1, leftPanelY + 1, leftPanelX + leftPanelW - 1, leftPanelY + bannerH, 0xFF1A273B, 0xFF121722);
+        String bgPath = map.getBackgroundFilePath();
+        if (bgPath != null && !bgPath.isEmpty()) {
+            BeatmapBackgroundCache.drawBannerBackground(g, bgPath, leftPanelX + 1, leftPanelY + 1, leftPanelW - 2, bannerH - 1);
+            g.fillGradient(leftPanelX + 1, leftPanelY + 1, leftPanelX + leftPanelW - 1, leftPanelY + bannerH, 0x990C111B, 0xE6121722);
+        } else {
+            g.fillGradient(leftPanelX + 1, leftPanelY + 1, leftPanelX + leftPanelW - 1, leftPanelY + bannerH, 0xFF1A273B, 0xFF121722);
+        }
         g.fill(leftPanelX + 1, leftPanelY + 1, leftPanelX + leftPanelW - 1, leftPanelY + 3, diffColor);
 
         int innerX = leftPanelX + 8;
@@ -773,7 +779,14 @@ public class SongSelectScreen extends Screen {
                 int bgColor = isExpanded ? 0xE6142638 : (isHovered ? 0xCC182332 : 0xB8121620);
                 int borderColor = isExpanded ? 0xFF00E5FF : (isHovered ? 0xFF354860 : 0xFF222B3B);
 
-                g.fill(cardX, cardY, cardX + cardW, cardY + item.height, bgColor);
+                Beatmap setDefault = item.set.getDefaultBeatmap();
+                String setBgPath = (setDefault != null) ? setDefault.getBackgroundFilePath() : "";
+                if (setBgPath != null && !setBgPath.isEmpty()) {
+                    BeatmapBackgroundCache.drawBannerBackground(g, setBgPath, cardX + 1, cardY + 1, cardW - 2, item.height - 2);
+                    g.fill(cardX + 1, cardY + 1, cardX + cardW - 1, cardY + item.height - 1, isExpanded ? 0xB80E1E2E : (isHovered ? 0xCC101824 : 0xD80D111A));
+                } else {
+                    g.fill(cardX, cardY, cardX + cardW, cardY + item.height, bgColor);
+                }
                 drawBorder(g, cardX, cardY, cardW, item.height, borderColor);
 
                 // Icono acordeón: ▼ si está desplegado, ▶ si está cerrado
@@ -984,6 +997,14 @@ public class SongSelectScreen extends Screen {
 
         boolean searchFocused = this.searchBox != null && this.searchBox.isFocused();
         if (!searchFocused) {
+            if (key == GLFW.GLFW_KEY_LEFT) {
+                navigateBeatmapSets(-1);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_RIGHT) {
+                navigateBeatmapSets(1);
+                return true;
+            }
             if (key == GLFW.GLFW_KEY_O) {
                 openSettings();
                 return true;
@@ -1009,6 +1030,25 @@ public class SongSelectScreen extends Screen {
         }
 
         return super.keyPressed(event);
+    }
+
+    private void navigateBeatmapSets(int delta) {
+        if (this.filteredSets.isEmpty()) return;
+        int currentSetIdx = 0;
+        for (int i = 0; i < this.filteredSets.size(); i++) {
+            if (this.filteredSets.get(i).getId().equals(this.expandedSetId)) {
+                currentSetIdx = i;
+                break;
+            }
+        }
+        int nextSetIdx = (currentSetIdx + delta + this.filteredSets.size()) % this.filteredSets.size();
+        BeatmapSet nextSet = this.filteredSets.get(nextSetIdx);
+        this.expandedSetId = nextSet.getId();
+        this.selectedBeatmap = nextSet.getDefaultBeatmap();
+        rebuildVisibleList();
+        ensureIndexVisible(this.selectedVisibleIndex);
+        triggerPreviewForSelected();
+        saveSelectionState();
     }
 
     private void navigateVisibleItems(int delta) {
