@@ -1,6 +1,7 @@
 package com.vsrcraft.client.gui;
 
 import com.vsrcraft.client.audio.AudioManager;
+import com.vsrcraft.client.config.OsuDifficultyColor;
 import com.vsrcraft.client.config.VSRCraftSettings;
 import com.vsrcraft.client.domain.Beatmap;
 import com.vsrcraft.client.domain.BeatmapRepository;
@@ -746,47 +747,65 @@ public class SongSelectScreen extends Screen {
 
     private void drawMapDensityGraph(GuiGraphics g, Beatmap map, int x, int y, int w, int h) {
         float[] buckets = map.getDensityBuckets();
-        if (buckets == null || buckets.length == 0 || w <= 8 || h <= 8) return;
+        if (buckets == null || buckets.length < 2 || w <= 8 || h <= 8) return;
 
         g.fill(x, y, x + w, y + h, 0x88070A12);
         drawBorder(g, x, y, w, h, 0xFF1A2538);
 
         int plotX = x + 2;
-        int plotW = w - 4;
+        int plotW = Math.max(2, w - 4);
         int plotBottom = y + h - 2;
         int plotMaxH = Math.max(4, h - 13);
 
-        // Línea guía horizontal al 50%
-        int midY = plotBottom - (plotMaxH / 2);
-        g.fill(plotX, midY, plotX + plotW, midY + 1, 0x1EFFFFFF);
+        // Escala absoluta de NPS (24 NPS techo base) para que mapas fáciles queden bajos y no escalados al 100%
+        float ceilNps = Math.max(24.0f, map.getPeakNps());
+
+        // Línea guía horizontal sutil (12 NPS)
+        int midRefY = plotBottom - Math.round((12.0f / ceilNps) * plotMaxH);
+        if (midRefY > y + 10 && midRefY < plotBottom) {
+            g.fill(plotX, midRefY, plotX + plotW, midRefY + 1, 0x1AFFFFFF);
+        }
 
         int n = buckets.length;
-        for (int i = 0; i < n; i++) {
-            int bx0 = plotX + (i * plotW) / n;
-            int bx1 = plotX + ((i + 1) * plotW) / n;
-            if (bx1 <= bx0) bx1 = bx0 + 1;
+        int prevY = -1;
 
-            float val = buckets[i];
-            int barH = Math.max(val > 0.01f ? 1 : 0, Math.round(val * plotMaxH));
-            if (barH <= 0) continue;
+        for (int px = 0; px < plotW; px++) {
+            double pos = (px / (double) Math.max(1, plotW - 1)) * (n - 1);
+            int idx0 = Math.min(n - 1, (int) Math.floor(pos));
+            int idx1 = Math.min(n - 1, idx0 + 1);
+            double frac = pos - idx0;
+            // Interpolación coseno para una curva suave que sube y baja orgánicamente
+            double mu = (1.0 - Math.cos(frac * Math.PI)) * 0.5;
+            float nps = (float) (buckets[idx0] * (1.0 - mu) + buckets[idx1] * mu);
 
-            int barColor;
-            if (val < 0.35f) {
-                barColor = 0xCC29B6F6; // Cian/Azul suave
-            } else if (val < 0.65f) {
-                barColor = 0xCCFFD54F; // Amarillo
-            } else if (val < 0.85f) {
-                barColor = 0xCCFF7043; // Naranja
-            } else {
-                barColor = 0xCCFF2A6D; // Rojo/Rosa intenso (pico)
+            float normH = Math.max(0.0f, Math.min(1.0f, nps / ceilNps));
+            int currY = plotBottom - Math.round(normH * plotMaxH);
+
+            int spectrumColor = OsuDifficultyColor.getColorForNps(nps);
+            int areaColor = (spectrumColor & 0x00FFFFFF) | 0x42000000;
+            int lineColor = (spectrumColor & 0x00FFFFFF) | 0xFF000000;
+
+            int colX = plotX + px;
+            // Relleno translúcido debajo de la curva
+            if (currY < plotBottom) {
+                g.fill(colX, currY, colX + 1, plotBottom, areaColor);
             }
-            g.fill(bx0, plotBottom - barH, bx1, plotBottom, barColor);
+
+            // Línea curva continua de 2px conectando sin huecos con la columna anterior
+            int segTop = (prevY < 0) ? currY : Math.min(prevY, currY);
+            int segBottom = (prevY < 0) ? currY : Math.max(prevY, currY);
+            int drawTop = Math.max(y + 1, segTop - 1);
+            int drawBottom = Math.min(plotBottom, segBottom + 1);
+            g.fill(colX, drawTop, colX + 1, drawBottom, lineColor);
+
+            prevY = currY;
         }
 
         g.drawString(this.font, "DENSIDAD", x + 4, y + 2, 0xFF667788, false);
         String peakStr = String.format(Locale.ROOT, "Pico: %.1f NPS", map.getPeakNps());
         int peakW = this.font.width(peakStr);
-        g.drawString(this.font, peakStr, x + w - peakW - 4, y + 2, 0xFF80DEEA, false);
+        int peakColor = OsuDifficultyColor.getColorForNps(map.getPeakNps());
+        g.drawString(this.font, peakStr, x + w - peakW - 4, y + 2, peakColor, false);
     }
 
     private void drawStatCell(GuiGraphics g, int x, int y, int w, int h, String label, String value, int valueColor) {
@@ -1147,11 +1166,7 @@ public class SongSelectScreen extends Screen {
     }
 
     private static int getDifficultyColor(float stars) {
-        if (stars < 2.0f) return 0xFF66BB6A; // Easy (Verde)
-        if (stars < 2.8f) return 0xFF29B6F6; // Normal (Cian)
-        if (stars < 4.0f) return 0xFFFFCA28; // Hard (Ámbar)
-        if (stars < 5.3f) return 0xFFFF5252; // Insane (Rojo/Coral)
-        return 0xFFAB47BC;                   // Expert+ (Púrpura)
+        return OsuDifficultyColor.getSpectrumColor(stars);
     }
 
     private static int getRankColor(String rank) {

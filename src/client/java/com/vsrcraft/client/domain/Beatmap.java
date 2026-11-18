@@ -220,19 +220,11 @@ public class Beatmap {
         this.peakNps = maxRawNps;
 
         float[] smoothed = new float[DENSITY_BUCKETS];
-        float maxSmooth = 0.001f;
         for (int i = 0; i < DENSITY_BUCKETS; i++) {
             float prev = (i > 0) ? rawNps[i - 1] : rawNps[i];
             float curr = rawNps[i];
             float next = (i < DENSITY_BUCKETS - 1) ? rawNps[i + 1] : rawNps[i];
             smoothed[i] = prev * 0.2f + curr * 0.6f + next * 0.2f;
-            if (smoothed[i] > maxSmooth) {
-                maxSmooth = smoothed[i];
-            }
-        }
-
-        for (int i = 0; i < DENSITY_BUCKETS; i++) {
-            smoothed[i] = Math.max(0.0f, Math.min(1.0f, smoothed[i] / maxSmooth));
         }
         this.densityBuckets = smoothed;
     }
