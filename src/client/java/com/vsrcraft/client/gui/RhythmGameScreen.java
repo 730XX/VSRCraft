@@ -726,13 +726,13 @@ public class RhythmGameScreen extends Screen {
             return true;
         }
 
-        if (event.key() == GLFW.GLFW_KEY_LEFT || event.key() == GLFW.GLFW_KEY_MINUS || event.key() == GLFW.GLFW_KEY_KP_SUBTRACT) {
+        if (event.key() == VSRCraftSettings.get().keyOffsetMinus) {
             VSRCraftSettings.get().globalAudioOffsetMs -= 5L;
             VSRCraftSettings.save();
             showHudToast(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
             return true;
         }
-        if (event.key() == GLFW.GLFW_KEY_RIGHT || event.key() == GLFW.GLFW_KEY_EQUAL || event.key() == GLFW.GLFW_KEY_KP_ADD) {
+        if (event.key() == VSRCraftSettings.get().keyOffsetPlus) {
             VSRCraftSettings.get().globalAudioOffsetMs += 5L;
             VSRCraftSettings.save();
             showHudToast(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);

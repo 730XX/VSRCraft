@@ -43,6 +43,8 @@ public class VSRSettingsScreen extends Screen {
     private final ScreenTransition transition = new ScreenTransition(220L);
 
     // Estado de reasignación de teclas
+    private static final int LISTEN_OFFSET_MINUS = -10;
+    private static final int LISTEN_OFFSET_PLUS = -11;
     private int listeningLane = -1;
     private int editingKeyMode = 4; // 4K o 7K
 
@@ -559,6 +561,35 @@ public class VSRSettingsScreen extends Screen {
             ).bounds(keyStartX + i * (keyBtnW + keyGap), keyY, keyBtnW, 22).build();
             this.addRenderableWidget(keyBtn);
         }
+
+        // Keybinds configurables para Audio Offset (-5ms / +5ms), por defecto Flechas ← / →
+        int offsetKeyY = keyY + 34;
+        int halfW = (w - 6) / 2;
+        String minusLabel = (this.listeningLane == LISTEN_OFFSET_MINUS)
+                ? "§ePresiona tecla..."
+                : "Offset -5ms: §b[" + getKeyDisplayName(settings.keyOffsetMinus) + "]";
+        Button offsetMinusBtn = Button.builder(
+                Component.literal(minusLabel),
+                btn -> {
+                    this.listeningLane = LISTEN_OFFSET_MINUS;
+                    this.clearWidgets();
+                    this.init();
+                }
+        ).bounds(x, offsetKeyY, halfW, 20).build();
+        this.addRenderableWidget(offsetMinusBtn);
+
+        String plusLabel = (this.listeningLane == LISTEN_OFFSET_PLUS)
+                ? "§ePresiona tecla..."
+                : "Offset +5ms: §b[" + getKeyDisplayName(settings.keyOffsetPlus) + "]";
+        Button offsetPlusBtn = Button.builder(
+                Component.literal(plusLabel),
+                btn -> {
+                    this.listeningLane = LISTEN_OFFSET_PLUS;
+                    this.clearWidgets();
+                    this.init();
+                }
+        ).bounds(x + halfW + 6, offsetKeyY, w - halfW - 6, 20).build();
+        this.addRenderableWidget(offsetPlusBtn);
     }
 
     private void resetToDefaults() {
@@ -584,6 +615,8 @@ public class VSRSettingsScreen extends Screen {
         s.hudOffsetY = 0;
         s.keybinds4K = new int[]{GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K};
         s.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
+        s.keyOffsetMinus = GLFW.GLFW_KEY_LEFT;
+        s.keyOffsetPlus = GLFW.GLFW_KEY_RIGHT;
         VSRCraftSettings.save();
         AudioManager.updateMusicVolume();
         this.clearWidgets();
@@ -621,12 +654,16 @@ public class VSRSettingsScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        if (this.listeningLane >= 0) {
+        if (this.listeningLane != -1) {
             int newKey = event.key();
             if (newKey != GLFW.GLFW_KEY_ESCAPE) {
-                if (this.editingKeyMode == 4) {
+                if (this.listeningLane == LISTEN_OFFSET_MINUS) {
+                    VSRCraftSettings.get().keyOffsetMinus = newKey;
+                } else if (this.listeningLane == LISTEN_OFFSET_PLUS) {
+                    VSRCraftSettings.get().keyOffsetPlus = newKey;
+                } else if (this.editingKeyMode == 4 && this.listeningLane >= 0 && this.listeningLane < 4) {
                     VSRCraftSettings.get().keybinds4K[this.listeningLane] = newKey;
-                } else {
+                } else if (this.editingKeyMode == 7 && this.listeningLane >= 0 && this.listeningLane < 7) {
                     VSRCraftSettings.get().keybinds7K[this.listeningLane] = newKey;
                 }
                 VSRCraftSettings.save();
@@ -684,8 +721,11 @@ public class VSRSettingsScreen extends Screen {
         // Contenedor Columna Derecha (Live Preview en Tiempo Real)
         renderLivePreviewPanel(g);
 
-        if (this.listeningLane >= 0) {
-            String hint = "§ePresiona cualquier tecla para Carril " + (this.listeningLane + 1) + " (ESC para cancelar)";
+        if (this.listeningLane != -1) {
+            String targetName = (this.listeningLane == LISTEN_OFFSET_MINUS) ? "Offset -5ms"
+                    : (this.listeningLane == LISTEN_OFFSET_PLUS) ? "Offset +5ms"
+                    : "Carril " + (this.listeningLane + 1);
+            String hint = "§ePresiona cualquier tecla para " + targetName + " (ESC para cancelar)";
             g.drawString(this.font, hint, leftPanelX + 10, leftPanelY + leftPanelH - 14, 0xFFFF55, false);
         }
 

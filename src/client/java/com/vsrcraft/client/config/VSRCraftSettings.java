@@ -130,6 +130,8 @@ public class VSRCraftSettings {
             GLFW.GLFW_KEY_K,
             GLFW.GLFW_KEY_L
     };
+    public int keyOffsetMinus = GLFW.GLFW_KEY_LEFT;
+    public int keyOffsetPlus = GLFW.GLFW_KEY_RIGHT;
 
     // 5. Récords personales por Beatmap ID
     public Map<String, BeatmapRecord> personalBests = new HashMap<>();
@@ -176,6 +178,12 @@ public class VSRCraftSettings {
             }
             if (instance.keybinds7K == null || instance.keybinds7K.length < 7) {
                 instance.keybinds7K = new int[]{GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_SPACE, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_K, GLFW.GLFW_KEY_L};
+            }
+            if (instance.keyOffsetMinus <= 0) {
+                instance.keyOffsetMinus = GLFW.GLFW_KEY_LEFT;
+            }
+            if (instance.keyOffsetPlus <= 0) {
+                instance.keyOffsetPlus = GLFW.GLFW_KEY_RIGHT;
             }
             if (instance.hitPositionOffsetBottom <= 0) {
                 instance.hitPositionOffsetBottom = 60;

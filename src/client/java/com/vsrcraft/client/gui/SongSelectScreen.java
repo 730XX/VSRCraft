@@ -1031,18 +1031,6 @@ public class SongSelectScreen extends Screen {
                 showStatusMessage(String.format(Locale.ROOT, "Playback Rate: %.2fx", rememberedPlaybackRate), 0xFF55E5FF);
                 return true;
             }
-            if (key == GLFW.GLFW_KEY_MINUS || key == GLFW.GLFW_KEY_KP_SUBTRACT) {
-                VSRCraftSettings.get().globalAudioOffsetMs -= 5L;
-                VSRCraftSettings.save();
-                showStatusMessage(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
-                return true;
-            }
-            if (key == GLFW.GLFW_KEY_EQUAL || key == GLFW.GLFW_KEY_KP_ADD) {
-                VSRCraftSettings.get().globalAudioOffsetMs += 5L;
-                VSRCraftSettings.save();
-                showStatusMessage(String.format(Locale.ROOT, "Audio Offset: %+d ms", VSRCraftSettings.get().globalAudioOffsetMs), 0xFF00E5FF);
-                return true;
-            }
         }
 
         return super.keyPressed(event);
