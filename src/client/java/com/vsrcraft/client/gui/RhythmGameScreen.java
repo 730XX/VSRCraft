@@ -262,6 +262,10 @@ public class RhythmGameScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        if (!this.pauseMenuOpen && !engine.isFailed() && this.getFocused() != null) {
+            this.setFocused(null);
+        }
+
         // Fondo oscurecido completo (Background Dim)
         float dim = VSRCraftSettings.get().backgroundDim;
         if (dim > 0.0f) {
@@ -740,7 +744,7 @@ public class RhythmGameScreen extends Screen {
         }
 
         if (isReplayMode()) {
-            return super.keyPressed(event);
+            return true;
         }
 
         long currentSongTime = Math.round(getCurrentSongTimeMs());
@@ -761,7 +765,7 @@ public class RhythmGameScreen extends Screen {
             }
         }
 
-        return super.keyPressed(event);
+        return true;
     }
 
     @Override
