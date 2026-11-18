@@ -40,16 +40,18 @@ public class JudgementHudRenderer {
         int barH = 4;
         int leftX = centerX - (barW / 2);
 
-        // Fondo oscuro y línea central de 0ms
+        // Fondo oscuro y bandas sutiles de referencia (±45ms)
         g.fill(leftX, barY, leftX + barW, barY + barH, 0x77080B12);
-        // Bandas sutiles de referencia (±45ms)
         int halfW = barW / 2;
         int px45 = Math.round((45.0f / 140.0f) * halfW);
         g.fill(centerX - px45, barY + 1, centerX + px45, barY + barH - 1, 0x2200E5FF);
-        g.fill(centerX - 1, barY - 2, centerX + 1, barY + barH + 2, 0xCCFFFFFF);
 
         List<ScoreTracker.HitSample> samples = tracker.getHitSamples();
-        if (samples.isEmpty()) return;
+        if (samples.isEmpty()) {
+            // Línea blanca central de 0ms siempre visible
+            g.fill(centerX, barY - 4, centerX + 1, barY + barH + 4, 0xFFFFFFFF);
+            return;
+        }
 
         int maxVisible = 24;
         int startIdx = Math.max(0, samples.size() - maxVisible);
@@ -67,6 +69,9 @@ public class JudgementHudRenderer {
             int tickX = centerX + (int) Math.round((clamped / 140.0) * (halfW - 2));
             g.fill(tickX, barY - 2, tickX + 2, barY + barH + 2, color);
         }
+
+        // Línea blanca central de 0ms por encima de los ticks para referencia exacta
+        g.fill(centerX, barY - 4, centerX + 1, barY + barH + 4, 0xFFFFFFFF);
 
         // Aguja promedio de los últimos hits
         double mean = Math.max(-140.0, Math.min(140.0, sumErr / count));
