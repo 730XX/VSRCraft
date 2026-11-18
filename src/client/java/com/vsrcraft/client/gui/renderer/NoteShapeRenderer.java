@@ -12,6 +12,27 @@ public final class NoteShapeRenderer {
         LEFT, DOWN, UP, RIGHT, DIAMOND
     }
 
+    private static final int MAX_CACHED_RADIUS = 36;
+    private static final int[][] CIRCLE_DX = new int[MAX_CACHED_RADIUS + 1][];
+
+    static {
+        for (int r = 1; r <= MAX_CACHED_RADIUS; r++) {
+            CIRCLE_DX[r] = new int[r + 1];
+            int r2 = r * r;
+            for (int dy = 0; dy <= r; dy++) {
+                CIRCLE_DX[r][dy] = (int) Math.floor(Math.sqrt(Math.max(0, r2 - dy * dy)));
+            }
+        }
+    }
+
+    private static int getCircleDx(int radius, int absDy) {
+        if (radius <= 0 || absDy > radius) return 0;
+        if (radius <= MAX_CACHED_RADIUS) {
+            return CIRCLE_DX[radius][absDy];
+        }
+        return (int) Math.floor(Math.sqrt(Math.max(0, radius * radius - absDy * absDy)));
+    }
+
     private NoteShapeRenderer() {}
 
     public static ArrowDir getArrowDirection(int lane, int totalLanes) {
@@ -42,24 +63,28 @@ public final class NoteShapeRenderer {
 
     public static void drawFilledCircle(GuiGraphics g, int cx, int cy, int radius, int color) {
         if (radius <= 0) return;
-        int r2 = radius * radius;
-        for (int dy = -radius; dy <= radius; dy++) {
-            int dx = (int) Math.floor(Math.sqrt(Math.max(0, r2 - dy * dy)));
-            g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
+        int dy = -radius;
+        while (dy <= radius) {
+            int dx = getCircleDx(radius, Math.abs(dy));
+            int endDy = dy + 1;
+            while (endDy <= radius && getCircleDx(radius, Math.abs(endDy)) == dx) {
+                endDy++;
+            }
+            g.fill(cx - dx, cy + dy, cx + dx + 1, cy + endDy, color);
+            dy = endDy;
         }
     }
 
     public static void drawCircleOutline(GuiGraphics g, int cx, int cy, int radius, int thickness, int color) {
         if (radius <= 0) return;
-        int outer2 = radius * radius;
         int innerR = Math.max(0, radius - Math.max(1, thickness));
-        int inner2 = innerR * innerR;
         for (int dy = -radius; dy <= radius; dy++) {
-            int outDx = (int) Math.floor(Math.sqrt(Math.max(0, outer2 - dy * dy)));
-            if (Math.abs(dy) >= innerR) {
+            int absDy = Math.abs(dy);
+            int outDx = getCircleDx(radius, absDy);
+            if (absDy >= innerR) {
                 g.fill(cx - outDx, cy + dy, cx + outDx + 1, cy + dy + 1, color);
             } else {
-                int inDx = (int) Math.floor(Math.sqrt(Math.max(0, inner2 - dy * dy)));
+                int inDx = getCircleDx(innerR, absDy);
                 if (outDx > inDx) {
                     g.fill(cx - outDx, cy + dy, cx - inDx, cy + dy + 1, color);
                     g.fill(cx + inDx + 1, cy + dy, cx + outDx + 1, cy + dy + 1, color);
@@ -161,19 +186,31 @@ public final class NoteShapeRenderer {
         int bodyTopY = tailY + capRadius;
         double centerX = (leftX + rightX) / 2.0;
 
-        // 1. Semicírculo superior redondeado en tailY
-        if (capRadius > 1) {
-            double r2 = capRadius * (double) capRadius;
-            for (int dy = 0; dy < capRadius; dy++) {
+        // 1. Semicírculo superior redondeado en tailY (usando tabla precalculada y sólo si entra en pantalla)
+        if (capRadius > 1 && tailY + capRadius > minClipY && tailY < maxClipY) {
+            int dy = 0;
+            while (dy < capRadius) {
                 int y = tailY + dy;
-                if (y < minClipY || y >= maxClipY) continue;
-                double distFromCenter = capRadius - dy;
-                double halfSpan = Math.sqrt(Math.max(0.0, r2 - distFromCenter * distFromCenter));
+                if (y < minClipY) {
+                    dy++;
+                    continue;
+                }
+                if (y >= maxClipY) break;
+                int distFromCenter = capRadius - dy;
+                int halfSpan = getCircleDx(capRadius, distFromCenter);
                 int rowLeft = Math.max(leftX, (int) Math.floor(centerX - halfSpan));
                 int rowRight = Math.min(rightX, (int) Math.ceil(centerX + halfSpan));
-                if (rowRight > rowLeft) {
-                    g.fill(rowLeft, y, rowRight, y + 1, bodyColor);
+
+                int endDy = dy + 1;
+                while (endDy < capRadius && (tailY + endDy) < maxClipY) {
+                    int nextSpan = getCircleDx(capRadius, capRadius - endDy);
+                    if (nextSpan != halfSpan) break;
+                    endDy++;
                 }
+                if (rowRight > rowLeft) {
+                    g.fill(rowLeft, y, rowRight, tailY + endDy, bodyColor);
+                }
+                dy = endDy;
             }
         }
 

@@ -224,28 +224,42 @@ public class HitEffectRenderer {
     }
 
     private static void drawRadialGlow(GuiGraphics g, int cx, int cy, float radius, int rgb, float fade) {
-        int steps = 4;
         int rgbMask = rgb & 0x00FFFFFF;
-        // Glow ovalado horizontal (más ancho a lo largo del carril y más plano en vertical)
         float radiusX = radius * 1.35f;
         float radiusY = radius * 0.45f;
+        int steps = 3;
         for (int step = steps; step >= 1; step--) {
             float frac = (float) step / (float) steps;
             int rx = Math.max(2, Math.round(radiusX * frac));
             int ry = Math.max(1, Math.round(radiusY * frac));
-            float layerAlpha = (1.0f - frac * 0.72f) * 0.24f * fade;
+            float layerAlpha = (1.0f - frac * 0.68f) * 0.25f * fade;
             int alpha = Math.max(0, Math.min(255, Math.round(layerAlpha * 255.0f)));
             if (alpha <= 1) continue;
             int color = (alpha << 24) | rgbMask;
-            drawFilledOval(g, cx, cy, rx, ry, color);
+            drawFastOval(g, cx, cy, rx, ry, color);
         }
     }
 
-    private static void drawFilledOval(GuiGraphics g, int cx, int cy, int rx, int ry, int color) {
-        for (int dy = -ry; dy <= ry; dy++) {
-            double normY = (double) dy / (double) ry;
-            int dx = (int) Math.round(rx * Math.sqrt(Math.max(0.0, 1.0 - normY * normY)));
-            g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
+    private static void drawFastOval(GuiGraphics g, int cx, int cy, int rx, int ry, int color) {
+        if (ry <= 2) {
+            g.fill(cx - rx, cy - ry, cx + rx + 1, cy + ry + 1, color);
+            return;
+        }
+        // Aproximación ovalada en 3 bandas horizontales fusionadas (sin Math.sqrt ni fill por fila)
+        int midHalfY = Math.max(1, (ry * 45) / 100);
+        int shoulderHalfY = Math.max(midHalfY + 1, (ry * 80) / 100);
+        int shoulderRx = (rx * 84) / 100;
+        int tipRx = (rx * 52) / 100;
+
+        // Banda central
+        g.fill(cx - rx, cy - midHalfY, cx + rx + 1, cy + midHalfY + 1, color);
+        // Bandas intermedias (arriba y abajo)
+        g.fill(cx - shoulderRx, cy - shoulderHalfY, cx + shoulderRx + 1, cy - midHalfY, color);
+        g.fill(cx - shoulderRx, cy + midHalfY + 1, cx + shoulderRx + 1, cy + shoulderHalfY + 1, color);
+        // Tapas superior e inferior
+        if (ry > shoulderHalfY) {
+            g.fill(cx - tipRx, cy - ry, cx + tipRx + 1, cy - shoulderHalfY, color);
+            g.fill(cx - tipRx, cy + shoulderHalfY + 1, cx + tipRx + 1, cy + ry + 1, color);
         }
     }
 

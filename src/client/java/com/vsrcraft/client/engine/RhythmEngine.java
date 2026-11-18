@@ -29,6 +29,7 @@ public class RhythmEngine {
     // Sistema de Vida (HP) y Fallo (Fail Condition)
     private float hp = 100.0f;
     private boolean isFailed = false;
+    private int firstActiveNoteIdx = 0;
 
     public RhythmEngine(Beatmap beatmap) {
         this.beatmap = beatmap;
@@ -42,6 +43,7 @@ public class RhythmEngine {
         this.scoreTracker.reset(computeTotalJudgementUnits(this.beatmap));
         this.hp = 100.0f;
         this.isFailed = false;
+        this.firstActiveNoteIdx = 0;
         this.lastJudgement = null;
         this.pendingVisualEvents.clear();
         Arrays.fill(this.activeHolds, null);
@@ -88,20 +90,43 @@ public class RhythmEngine {
     public void update(long currentSongTimeMs) {
         if (this.isFailed) return;
 
-        // 1. Chequear notas cuya cabeza pasó de largo sin ser presionadas (Miss)
-        for (Note note : beatmap.getNotes()) {
-            if (!note.isHit() && !note.isMissed()) {
-                long timeUntilHit = note.getOffsetMs() - currentSongTimeMs;
-                if (timeUntilHit < -RhythmConfig.MAX_HIT_WINDOW_MS) {
-                    note.setMissed(true);
-                    if (note.getType() == Note.Type.HOLD) {
-                        note.setHoldState(Note.HoldState.DROPPED);
-                    }
-                    this.lastJudgement = Judgement.MISS;
-                    this.scoreTracker.registerJudgement(Judgement.MISS);
-                    this.pendingVisualEvents.add(new HitEvent(note.getLane(), Judgement.MISS));
-                    applyHpJudgement(Judgement.MISS);
+        List<Note> notes = beatmap.getNotes();
+        int n = notes.size();
+
+        // Avanzar puntero de ventana activa para descartar notas ya resueltas en O(1) amortizado
+        while (this.firstActiveNoteIdx < n) {
+            Note first = notes.get(this.firstActiveNoteIdx);
+            boolean isHold = first.getType() == Note.Type.HOLD && first.getDurationMs() > 0;
+            if (!isHold) {
+                if (first.isHit() || first.isMissed()) {
+                    this.firstActiveNoteIdx++;
+                    continue;
                 }
+            } else {
+                if (first.isCompleted() || currentSongTimeMs >= first.getTailOffsetMs() + 150L) {
+                    this.firstActiveNoteIdx++;
+                    continue;
+                }
+            }
+            break;
+        }
+
+        // 1. Chequear notas cuya cabeza pasó de largo sin ser presionadas (Miss) con early-break
+        for (int i = this.firstActiveNoteIdx; i < n; i++) {
+            Note note = notes.get(i);
+            long timeUntilHit = note.getOffsetMs() - currentSongTimeMs;
+            if (timeUntilHit >= -RhythmConfig.MAX_HIT_WINDOW_MS) {
+                break; // Al estar ordenadas por offsetMs, ninguna nota posterior puede haber expirado
+            }
+            if (!note.isHit() && !note.isMissed()) {
+                note.setMissed(true);
+                if (note.getType() == Note.Type.HOLD) {
+                    note.setHoldState(Note.HoldState.DROPPED);
+                }
+                this.lastJudgement = Judgement.MISS;
+                this.scoreTracker.registerJudgement(Judgement.MISS);
+                this.pendingVisualEvents.add(new HitEvent(note.getLane(), Judgement.MISS));
+                applyHpJudgement(Judgement.MISS);
             }
         }
 
@@ -128,9 +153,16 @@ public class RhythmEngine {
         Note closestNote = null;
         long minDelta = Long.MAX_VALUE;
 
-        for (Note note : beatmap.getNotes()) {
+        List<Note> notes = beatmap.getNotes();
+        int n = notes.size();
+        for (int i = this.firstActiveNoteIdx; i < n; i++) {
+            Note note = notes.get(i);
+            long signedDiff = note.getOffsetMs() - currentSongTimeMs;
+            if (signedDiff > RhythmConfig.MAX_HIT_WINDOW_MS) {
+                break; // Notas futuras fuera de la ventana de golpe
+            }
             if (!note.isHit() && !note.isMissed() && note.getLane() == lane) {
-                long delta = Math.abs(currentSongTimeMs - note.getOffsetMs());
+                long delta = Math.abs(signedDiff);
                 if (delta < minDelta && delta <= RhythmConfig.MAX_HIT_WINDOW_MS) {
                     minDelta = delta;
                     closestNote = note;
@@ -209,13 +241,15 @@ public class RhythmEngine {
     }
 
     public boolean isCleared(long currentSongTimeMs) {
-        if (this.isFailed || this.beatmap.getNotes().isEmpty()) {
+        List<Note> notes = this.beatmap.getNotes();
+        if (this.isFailed || notes.isEmpty()) {
             return false;
         }
         if (currentSongTimeMs < this.beatmap.getDurationMs() + 1500L) {
             return false;
         }
-        for (Note note : this.beatmap.getNotes()) {
+        for (int i = this.firstActiveNoteIdx; i < notes.size(); i++) {
+            Note note = notes.get(i);
             if (!note.isHit() && !note.isMissed()) {
                 return false;
             }
@@ -226,6 +260,7 @@ public class RhythmEngine {
         return true;
     }
 
+    public int getFirstActiveNoteIdx() { return firstActiveNoteIdx; }
     public float getHp() { return hp; }
     public boolean isFailed() { return isFailed; }
     public Beatmap getBeatmap() { return beatmap; }

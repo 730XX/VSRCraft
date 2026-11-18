@@ -302,8 +302,8 @@ public class RhythmGameScreen extends Screen {
         // 1. Render de pista y carriles (aplica opacidad y opción de hit glow)
         LaneRenderer.renderLanes(guiGraphics, this.font, boardStartX, boardWidth, hitLineY, this.height, keyCount, lanePressed);
 
-        // 2. Render de notas cayendo (aplica velocidad, grosor y hit position configurados)
-        NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount, this.playbackRate);
+        // 2. Render de notas cayendo (ventana activa O(visibles) + sub-píxel)
+        NoteRenderer.renderNotes(guiGraphics, engine.getBeatmap().getNotes(), currentSongTimeMs, boardStartX, hitLineY, this.height, keyCount, this.playbackRate, engine.getFirstActiveNoteIdx());
 
         // 2b. Efectos de golpe "Voxel Sparks" (chispas cúbicas debajo de la línea de impacto)
         if (!isPaused && !engine.isFailed()) {
