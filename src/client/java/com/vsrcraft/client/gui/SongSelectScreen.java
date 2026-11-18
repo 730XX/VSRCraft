@@ -23,6 +23,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -61,11 +62,39 @@ public class SongSelectScreen extends Screen {
     private List<BeatmapSet> filteredSets = new ArrayList<>();
     private final List<ListItem> visibleItems = new ArrayList<>();
 
+    private enum KeyFilter {
+        ALL("Todos"),
+        K4("4K"),
+        K7("7K");
+
+        final String label;
+        KeyFilter(String label) { this.label = label; }
+        KeyFilter next() {
+            KeyFilter[] vals = values();
+            return vals[(ordinal() + 1) % vals.length];
+        }
+    }
+
+    private enum SortMode {
+        TITLE("A-Z"),
+        STARS("★"),
+        BPM("BPM");
+
+        final String label;
+        SortMode(String label) { this.label = label; }
+        SortMode next() {
+            SortMode[] vals = values();
+            return vals[(ordinal() + 1) % vals.length];
+        }
+    }
+
     private static String rememberedSetId = null;
     private static String rememberedBeatmapId = null;
     private static String rememberedSearchQuery = "";
     private static double rememberedScrollOffset = -1.0;
     private static float rememberedPlaybackRate = 1.0f;
+    private static KeyFilter rememberedKeyFilter = KeyFilter.ALL;
+    private static SortMode rememberedSortMode = SortMode.TITLE;
 
     private String expandedSetId = null;
     private Beatmap selectedBeatmap = null;
@@ -128,16 +157,7 @@ public class SongSelectScreen extends Screen {
             this.selectedBeatmap = firstSet.getDefaultBeatmap();
         }
 
-        this.filteredSets = new ArrayList<>();
-        for (BeatmapSet set : this.allSets) {
-            if (set.matchesQuery(this.currentSearchQuery)) {
-                this.filteredSets.add(set);
-            }
-        }
-        if (this.filteredSets.isEmpty() && !this.allSets.isEmpty()) {
-            this.currentSearchQuery = "";
-            this.filteredSets.addAll(this.allSets);
-        }
+        applyFilterAndSort(true);
     }
 
     @Override
@@ -189,21 +209,59 @@ public class SongSelectScreen extends Screen {
         .tooltip(Tooltip.create(Component.literal("Recargar canciones (.minecraft/vsrg_beatmaps)")))
         .build());
 
-        // 4. Barra de búsqueda en la parte superior derecha
+        // 4. Barra de búsqueda + Filtro 4K/7K + Orden en la parte superior derecha
         int searchH = 20;
+        int filterBtnW = 48;
+        int sortBtnW = 78;
+        int controlsGap = 4;
+        int searchW = Math.max(80, this.rightPanelW - filterBtnW - sortBtnW - controlsGap * 2);
+
         this.searchBox = new EditBox(
                 this.font,
                 this.rightPanelX,
                 this.rightPanelY,
-                this.rightPanelW,
+                searchW,
                 searchH,
                 Component.literal("Buscar canción...")
         );
         this.searchBox.setMaxLength(80);
-        this.searchBox.setHint(Component.literal("§7🔍 Buscar por título, artista o dificultad..."));
+        this.searchBox.setHint(Component.literal("§7🔍 Buscar..."));
         this.searchBox.setValue(this.currentSearchQuery);
         this.searchBox.setResponder(this::onSearchChanged);
         this.addRenderableWidget(this.searchBox);
+
+        int filterX = this.rightPanelX + searchW + controlsGap;
+        this.addRenderableWidget(Button.builder(
+                Component.literal("§b" + rememberedKeyFilter.label),
+                btn -> {
+                    rememberedKeyFilter = rememberedKeyFilter.next();
+                    btn.setMessage(Component.literal("§b" + rememberedKeyFilter.label));
+                    applyFilterAndSort(false);
+                    rebuildVisibleList();
+                    ensureIndexVisible(this.selectedVisibleIndex);
+                    this.scrollOffset = this.targetScrollOffset;
+                    triggerPreviewForSelected();
+                }
+        )
+        .bounds(filterX, this.rightPanelY, filterBtnW, searchH)
+        .tooltip(Tooltip.create(Component.literal("Filtrar por modo (Todos / 4K / 7K)")))
+        .build());
+
+        int sortX = filterX + filterBtnW + controlsGap;
+        this.addRenderableWidget(Button.builder(
+                Component.literal("Ord: §e" + rememberedSortMode.label),
+                btn -> {
+                    rememberedSortMode = rememberedSortMode.next();
+                    btn.setMessage(Component.literal("Ord: §e" + rememberedSortMode.label));
+                    applyFilterAndSort(false);
+                    rebuildVisibleList();
+                    ensureIndexVisible(this.selectedVisibleIndex);
+                    this.scrollOffset = this.targetScrollOffset;
+                }
+        )
+        .bounds(sortX, this.rightPanelY, sortBtnW, searchH)
+        .tooltip(Tooltip.create(Component.literal("Ordenar por Título (A-Z), Estrellas (★) o BPM")))
+        .build());
 
         // Área de lista de canciones y dificultades
         this.listStartX = this.rightPanelX;
@@ -253,9 +311,13 @@ public class SongSelectScreen extends Screen {
             this.visibleItems.add(setItem);
             yAccum += setItem.height + ITEM_GAP;
 
-            // Si este set está expandido, desplegamos sus dificultades hijas debajo
+            // Si este set está expandido, desplegamos sus dificultades hijas debajo (filtradas por modo si aplica)
             if (set.getId().equals(this.expandedSetId)) {
+                int targetKeys = (rememberedKeyFilter == KeyFilter.K4) ? 4 : (rememberedKeyFilter == KeyFilter.K7 ? 7 : -1);
                 for (Beatmap diff : set.getDifficulties()) {
+                    if (targetKeys > 0 && diff.getKeyCount() != targetKeys) {
+                        continue;
+                    }
                     ListItem diffItem = new ListItem(set, diff);
                     diffItem.yTop = yAccum;
                     this.visibleItems.add(diffItem);
@@ -302,34 +364,7 @@ public class SongSelectScreen extends Screen {
 
     private void onSearchChanged(String query) {
         this.currentSearchQuery = query;
-        this.filteredSets.clear();
-
-        for (BeatmapSet set : this.allSets) {
-            if (set.matchesQuery(query)) {
-                this.filteredSets.add(set);
-            }
-        }
-
-        // Si el set expandido actual ya no está en los resultados, expandir el primero
-        boolean expandedStillPresent = false;
-        for (BeatmapSet s : this.filteredSets) {
-            if (s.getId().equals(this.expandedSetId)) {
-                expandedStillPresent = true;
-                break;
-            }
-        }
-
-        if (!expandedStillPresent) {
-            if (!this.filteredSets.isEmpty()) {
-                BeatmapSet first = this.filteredSets.get(0);
-                this.expandedSetId = first.getId();
-                this.selectedBeatmap = first.getDefaultBeatmap();
-            } else {
-                this.expandedSetId = null;
-                this.selectedBeatmap = null;
-            }
-        }
-
+        applyFilterAndSort(false);
         rebuildVisibleList();
         if (rememberedScrollOffset >= 0.0) {
             this.targetScrollOffset = rememberedScrollOffset;
@@ -339,6 +374,59 @@ public class SongSelectScreen extends Screen {
         ensureIndexVisible(this.selectedVisibleIndex);
         this.scrollOffset = this.targetScrollOffset;
         triggerPreviewForSelected();
+    }
+
+    private void applyFilterAndSort(boolean allowClearSearchFallback) {
+        this.filteredSets.clear();
+        int requiredKeys = (rememberedKeyFilter == KeyFilter.K4) ? 4 : (rememberedKeyFilter == KeyFilter.K7 ? 7 : -1);
+
+        for (BeatmapSet set : this.allSets) {
+            if (requiredKeys > 0 && !set.hasKeyCount(requiredKeys)) {
+                continue;
+            }
+            if (set.matchesQuery(this.currentSearchQuery)) {
+                this.filteredSets.add(set);
+            }
+        }
+
+        if (allowClearSearchFallback && this.filteredSets.isEmpty() && !this.allSets.isEmpty() && !this.currentSearchQuery.isEmpty()) {
+            this.currentSearchQuery = "";
+            for (BeatmapSet set : this.allSets) {
+                if (requiredKeys <= 0 || set.hasKeyCount(requiredKeys)) {
+                    this.filteredSets.add(set);
+                }
+            }
+        }
+
+        Comparator<BeatmapSet> comparator = switch (rememberedSortMode) {
+            case STARS -> Comparator.comparingDouble(BeatmapSet::getMinStars)
+                    .thenComparing(s -> s.getTitle().toLowerCase(Locale.ROOT));
+            case BPM -> Comparator.comparingInt(BeatmapSet::getPrimaryBpm)
+                    .thenComparing(s -> s.getTitle().toLowerCase(Locale.ROOT));
+            case TITLE -> Comparator.comparing(s -> s.getTitle().toLowerCase(Locale.ROOT));
+        };
+        this.filteredSets.sort(comparator);
+
+        BeatmapSet expandedSet = null;
+        for (BeatmapSet s : this.filteredSets) {
+            if (s.getId().equals(this.expandedSetId)) {
+                expandedSet = s;
+                break;
+            }
+        }
+
+        if (expandedSet == null) {
+            if (!this.filteredSets.isEmpty()) {
+                BeatmapSet first = this.filteredSets.get(0);
+                this.expandedSetId = first.getId();
+                this.selectedBeatmap = (requiredKeys > 0) ? first.getFirstForKeyCount(requiredKeys) : first.getDefaultBeatmap();
+            } else {
+                this.expandedSetId = null;
+                this.selectedBeatmap = null;
+            }
+        } else if (requiredKeys > 0 && (this.selectedBeatmap == null || this.selectedBeatmap.getKeyCount() != requiredKeys)) {
+            this.selectedBeatmap = expandedSet.getFirstForKeyCount(requiredKeys);
+        }
     }
 
     private void reloadCatalog() {
@@ -802,7 +890,7 @@ public class SongSelectScreen extends Screen {
         }
 
         g.drawString(this.font, "DENSIDAD", x + 4, y + 2, 0xFF667788, false);
-        String peakStr = String.format(Locale.ROOT, "Pico: %.1f NPS", map.getPeakNps());
+        String peakStr = String.format(Locale.ROOT, "Max: %.1f NPS", map.getPeakNps());
         int peakW = this.font.width(peakStr);
         int peakColor = OsuDifficultyColor.getColorForNps(map.getPeakNps());
         g.drawString(this.font, peakStr, x + w - peakW - 4, y + 2, peakColor, false);

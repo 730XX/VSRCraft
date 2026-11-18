@@ -103,6 +103,28 @@ public class BeatmapSet {
         return difficulties.get(0);
     }
 
+    public boolean hasKeyCount(int keyCount) {
+        for (Beatmap b : difficulties) {
+            if (b.getKeyCount() == keyCount) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Beatmap getFirstForKeyCount(int keyCount) {
+        for (Beatmap b : difficulties) {
+            if (b.getKeyCount() == keyCount) {
+                return b;
+            }
+        }
+        return getDefaultBeatmap();
+    }
+
+    public int getPrimaryBpm() {
+        return difficulties.isEmpty() ? 0 : difficulties.get(0).getBpm();
+    }
+
     public String getAudioResourcePath() {
         for (Beatmap b : difficulties) {
             if (b.getAudioResourcePath() != null && !b.getAudioResourcePath().isEmpty()) {
