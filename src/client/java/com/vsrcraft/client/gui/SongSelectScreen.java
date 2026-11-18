@@ -725,7 +725,15 @@ public class SongSelectScreen extends Screen {
                 }
             } else {
                 g.drawString(this.font, "§7RÉCORD PERSONAL", innerX + 6, yCursor + 5, 0xFF8899AA, false);
-                g.drawString(this.font, "Sin récord registrado aún", innerX + 6, yCursor + 18, 0xFF666677, false);
+                g.drawString(this.font, "Sin récord registrado aún", innerX + 6, yCursor + 17, 0xFF666677, false);
+            }
+
+            // Gráfica de densidad NPS en el espacio inferior del recuadro (para mapas con o sin récord)
+            int graphTop = (hasPersonal || hasReplay) ? (yCursor + 40) : (yCursor + 29);
+            int graphBottom = yCursor + recordBoxH - ((hoverRecord && recordBoxH >= 42) ? 13 : 5);
+            int graphH = graphBottom - graphTop;
+            if (graphH >= 16) {
+                drawMapDensityGraph(g, map, innerX + 6, graphTop, maxTextW - 12, graphH);
             }
 
             if (hoverRecord && recordBoxH >= 42) {
@@ -734,6 +742,51 @@ public class SongSelectScreen extends Screen {
                 g.drawString(this.font, hint, innerX + maxTextW - hintW - 6, yCursor + recordBoxH - 11, 0xFF00E5FF, false);
             }
         }
+    }
+
+    private void drawMapDensityGraph(GuiGraphics g, Beatmap map, int x, int y, int w, int h) {
+        float[] buckets = map.getDensityBuckets();
+        if (buckets == null || buckets.length == 0 || w <= 8 || h <= 8) return;
+
+        g.fill(x, y, x + w, y + h, 0x88070A12);
+        drawBorder(g, x, y, w, h, 0xFF1A2538);
+
+        int plotX = x + 2;
+        int plotW = w - 4;
+        int plotBottom = y + h - 2;
+        int plotMaxH = Math.max(4, h - 13);
+
+        // Línea guía horizontal al 50%
+        int midY = plotBottom - (plotMaxH / 2);
+        g.fill(plotX, midY, plotX + plotW, midY + 1, 0x1EFFFFFF);
+
+        int n = buckets.length;
+        for (int i = 0; i < n; i++) {
+            int bx0 = plotX + (i * plotW) / n;
+            int bx1 = plotX + ((i + 1) * plotW) / n;
+            if (bx1 <= bx0) bx1 = bx0 + 1;
+
+            float val = buckets[i];
+            int barH = Math.max(val > 0.01f ? 1 : 0, Math.round(val * plotMaxH));
+            if (barH <= 0) continue;
+
+            int barColor;
+            if (val < 0.35f) {
+                barColor = 0xCC29B6F6; // Cian/Azul suave
+            } else if (val < 0.65f) {
+                barColor = 0xCCFFD54F; // Amarillo
+            } else if (val < 0.85f) {
+                barColor = 0xCCFF7043; // Naranja
+            } else {
+                barColor = 0xCCFF2A6D; // Rojo/Rosa intenso (pico)
+            }
+            g.fill(bx0, plotBottom - barH, bx1, plotBottom, barColor);
+        }
+
+        g.drawString(this.font, "DENSIDAD", x + 4, y + 2, 0xFF667788, false);
+        String peakStr = String.format(Locale.ROOT, "Pico: %.1f NPS", map.getPeakNps());
+        int peakW = this.font.width(peakStr);
+        g.drawString(this.font, peakStr, x + w - peakW - 4, y + 2, 0xFF80DEEA, false);
     }
 
     private void drawStatCell(GuiGraphics g, int x, int y, int w, int h, String label, String value, int valueColor) {

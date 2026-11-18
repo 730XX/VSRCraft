@@ -32,6 +32,9 @@ public class Beatmap {
     private int tapCount = -1;
     private int holdCount = -1;
     private long durationMs = -1L;
+    private static final int DENSITY_BUCKETS = 72;
+    private float[] densityBuckets = null;
+    private float peakNps = -1.0f;
 
     public Beatmap(String title, String artist, int keyCount) {
         this(title + "_" + artist, title + "_" + artist, title, artist, "Unknown", "Normal", "", "", 3, keyCount, 5.0f, 5.0f, 120, "", "", 0L, 0L);
@@ -182,4 +185,55 @@ public class Beatmap {
     public String getBackgroundFilePath() { return backgroundFilePath; }
     public void setBackgroundFilePath(String backgroundFilePath) { this.backgroundFilePath = backgroundFilePath != null ? backgroundFilePath : ""; }
     public List<Note> getNotes() { return notes; }
+
+    public float[] getDensityBuckets() {
+        computeDensityIfNeeded();
+        return densityBuckets;
+    }
+
+    public float getPeakNps() {
+        computeDensityIfNeeded();
+        return peakNps;
+    }
+
+    private void computeDensityIfNeeded() {
+        if (this.densityBuckets != null) return;
+        float[] rawNps = new float[DENSITY_BUCKETS];
+        long totalDurationMs = Math.max(1000L, getDurationMs());
+        double bucketMs = totalDurationMs / (double) DENSITY_BUCKETS;
+        double bucketSec = Math.max(0.05, bucketMs / 1000.0);
+
+        for (Note note : this.notes) {
+            int idx = (int) Math.floor(note.getOffsetMs() / bucketMs);
+            if (idx < 0) idx = 0;
+            else if (idx >= DENSITY_BUCKETS) idx = DENSITY_BUCKETS - 1;
+            rawNps[idx] += 1.0f;
+        }
+
+        float maxRawNps = 0.0f;
+        for (int i = 0; i < DENSITY_BUCKETS; i++) {
+            rawNps[i] = (float) (rawNps[i] / bucketSec);
+            if (rawNps[i] > maxRawNps) {
+                maxRawNps = rawNps[i];
+            }
+        }
+        this.peakNps = maxRawNps;
+
+        float[] smoothed = new float[DENSITY_BUCKETS];
+        float maxSmooth = 0.001f;
+        for (int i = 0; i < DENSITY_BUCKETS; i++) {
+            float prev = (i > 0) ? rawNps[i - 1] : rawNps[i];
+            float curr = rawNps[i];
+            float next = (i < DENSITY_BUCKETS - 1) ? rawNps[i + 1] : rawNps[i];
+            smoothed[i] = prev * 0.2f + curr * 0.6f + next * 0.2f;
+            if (smoothed[i] > maxSmooth) {
+                maxSmooth = smoothed[i];
+            }
+        }
+
+        for (int i = 0; i < DENSITY_BUCKETS; i++) {
+            smoothed[i] = Math.max(0.0f, Math.min(1.0f, smoothed[i] / maxSmooth));
+        }
+        this.densityBuckets = smoothed;
+    }
 }
